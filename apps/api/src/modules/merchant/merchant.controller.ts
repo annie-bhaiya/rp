@@ -24,3 +24,4 @@ export class MerchantController {
     res.send(csv);
   }
 }
+
