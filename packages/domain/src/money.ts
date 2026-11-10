@@ -101,3 +101,4 @@ export function allocateLargestRemainder(total: Money, ratios: number[]): Money[
 
   return result.map((minor) => ({ currency: total.currency, minor: minor.toString() }));
 }
+

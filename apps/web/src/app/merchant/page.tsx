@@ -15,12 +15,17 @@ import {
   Clock,
   Eye,
   Sliders,
+  BarChart3,
+  FileDown,
+  Image as ImageIcon,
+  ExternalLink,
+  TrendingUp,
 } from 'lucide-react';
 import { fetchJson } from '../../lib/api';
 
 export default function MerchantOperationsPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'inbox' | 'recovery' | 'policies'>('inbox');
+  const [activeTab, setActiveTab] = useState<'inbox' | 'insights' | 'recovery' | 'policies'>('inbox');
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [inspectionResult, setInspectionResult] = useState<'PASSED' | 'FAILED'>('PASSED');
   const [inspectionNotes, setInspectionNotes] = useState('Physical item inspected: defective split zipper confirmed. Eligible for warranty remedy.');
@@ -52,6 +57,13 @@ export default function MerchantOperationsPage() {
     queryKey: ['merchant-policies'],
     queryFn: () => fetchJson<any[]>('/api/v1/merchant/policies'),
     enabled: activeTab === 'policies',
+  });
+
+  // 5. Fetch Insights
+  const { data: insights, refetch: refetchInsights } = useQuery({
+    queryKey: ['merchant-insights'],
+    queryFn: () => fetchJson<any>('/api/v1/merchant/insights'),
+    enabled: activeTab === 'insights',
   });
 
   // Merchant Approve Mutation
@@ -132,6 +144,15 @@ export default function MerchantOperationsPage() {
           >
             <Inbox className="w-3.5 h-3.5 mr-1.5" />
             Case Inbox
+          </button>
+          <button
+            onClick={() => setActiveTab('insights')}
+            className={`px-3 py-1.5 text-xs font-semibold border-t border-b border-r border-slate-300 flex items-center ${
+              activeTab === 'insights' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
+            Insights & Metrics
           </button>
           <button
             onClick={() => setActiveTab('recovery')}
@@ -249,6 +270,50 @@ export default function MerchantOperationsPage() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Customer Evidence Photos */}
+                  {caseDetails.evidence && caseDetails.evidence.length > 0 && (
+                    <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
+                      <h3 className="text-sm font-bold text-slate-900 mb-1 flex items-center">
+                        <ImageIcon className="w-4 h-4 mr-2 text-blue-800" />
+                        Customer Photo Evidence
+                      </h3>
+                      <p className="text-xs text-slate-500 mb-4">
+                        Inspect submitted images of damage/defects to verify policy compliance before authorizing refund or dispatch.
+                      </p>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        {caseDetails.evidence.map((ev: any) => (
+                          <div key={ev.id} className="border border-slate-200 rounded-md p-2 bg-slate-50">
+                            <div className="aspect-video bg-slate-200 rounded overflow-hidden flex items-center justify-center border border-slate-200">
+                              <img
+                                src={`/api/v1/cases/${caseDetails.case.id}/evidence/${ev.id}/file`}
+                                alt={ev.description || 'Defect Evidence'}
+                                className="object-cover w-full h-full"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                            <div className="mt-2">
+                              <div className="text-[11px] font-semibold text-slate-800 truncate">{ev.description || 'Item Photo'}</div>
+                              <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1">
+                                <span className="font-mono text-emerald-800 font-semibold">{ev.validationState}</span>
+                                <a
+                                  href={`/api/v1/cases/${caseDetails.case.id}/evidence/${ev.id}/file`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-blue-800 hover:underline flex items-center font-medium"
+                                >
+                                  Inspect <ExternalLink className="w-2.5 h-2.5 ml-0.5" />
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Return Inspection Gate Recorder */}
                   {caseDetails.returnRecord && (
@@ -372,7 +437,180 @@ export default function MerchantOperationsPage() {
         </div>
       )}
 
-      {/* Tab 2: Recovery Queue */}
+      {/* Tab 2: Operations & Intelligence Insights */}
+      {activeTab === 'insights' && (
+        <div className="space-y-6">
+          {/* Top Bar with Reconciliation CSV Export */}
+          <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Operations & Dispute Intelligence</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Real-time dispute frequency, defect risk by product denominator, and subledger reconciliation
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => refetchInsights()}
+                className="px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md shadow-sm flex items-center transition"
+              >
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                Refresh
+              </button>
+              <a
+                href="/api/v1/merchant/reconciliation/export.csv"
+                download
+                className="px-3.5 py-2 text-xs font-semibold text-white bg-blue-800 hover:bg-blue-700 rounded-md shadow-sm flex items-center transition"
+              >
+                <FileDown className="w-3.5 h-3.5 mr-1.5" />
+                Export Subledger (CSV)
+              </a>
+            </div>
+          </div>
+
+          {/* 4 Summary KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Dispute Rate</div>
+              <div className="text-2xl font-bold font-mono text-slate-900 mt-1">
+                {insights?.summary?.disputeRatePct ?? '0.0'}%
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1">
+                {insights?.summary?.totalCases ?? 0} disputes / {insights?.summary?.totalOrders ?? 0} total orders
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active vs Resolved</div>
+              <div className="text-2xl font-bold font-mono text-slate-900 mt-1">
+                {insights?.summary?.activeCases ?? 0} <span className="text-xs font-normal text-slate-400">active</span> / {insights?.summary?.resolvedCases ?? 0} <span className="text-xs font-normal text-slate-400">resolved</span>
+              </div>
+              <div className="text-[11px] text-emerald-700 mt-1">
+                {insights?.summary?.resolvedCases ? Math.round((insights.summary.resolvedCases / (insights.summary.totalCases || 1)) * 100) : 100}% resolution rate
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Refund Volume</div>
+              <div className="text-2xl font-bold font-mono text-emerald-800 mt-1">
+                ${(Number(insights?.summary?.totalRefundMinor ?? '0') / 100).toFixed(2)}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1">Disbursed back to original PayPal accounts</div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Replacements Sent</div>
+              <div className="text-2xl font-bold font-mono text-blue-900 mt-1">
+                {insights?.summary?.totalReplacementsDispatched ?? 0} <span className="text-xs font-normal text-slate-500">units</span>
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1">Retained customer lifetime value</div>
+            </div>
+          </div>
+
+          {/* Issue & Remedy Breakdown Grids */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
+              <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center">
+                <AlertTriangle className="w-4 h-4 mr-2 text-amber-600" />
+                Dispute Issue Distribution
+              </h3>
+              <div className="space-y-3">
+                {Object.entries(insights?.issueBreakdown ?? {}).map(([issue, count]: [string, any]) => {
+                  const total = insights?.summary?.totalCases || 1;
+                  const pct = Math.round((count / total) * 100);
+                  return (
+                    <div key={issue} className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-slate-700 capitalize">{issue.replace('_', ' ')}</span>
+                        <span className="font-mono text-slate-500">{count} ({pct}%)</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-amber-500 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
+              <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center">
+                <ShieldCheck className="w-4 h-4 mr-2 text-blue-800" />
+                Adopted Remedy Distribution
+              </h3>
+              <div className="space-y-3">
+                {Object.entries(insights?.remedyBreakdown ?? {}).map(([rem, count]: [string, any]) => {
+                  const total = Object.values(insights?.remedyBreakdown ?? {}).reduce((a: number, b: any) => a + Number(b), 0) || 1;
+                  const pct = Math.round((count / (total as number)) * 100);
+                  return (
+                    <div key={rem} className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-slate-700">{rem.replace('_', ' ')}</span>
+                        <span className="font-mono text-slate-500">{count} ({pct}%)</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-800 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Product-Level Complaint Frequency with Denominators */}
+          <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
+            <div className="mb-4">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center">
+                <TrendingUp className="w-4 h-4 mr-2 text-blue-800" />
+                Product Risk & Defect Rate by SKU
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Calculated against complete order shipment denominators to identify recurring manufacturer defects.
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider">
+                  <tr>
+                    <th className="py-2.5 px-3">SKU</th>
+                    <th className="py-2.5 px-3">Product Name</th>
+                    <th className="py-2.5 px-3 text-right">Units Sold</th>
+                    <th className="py-2.5 px-3 text-right">Complaints</th>
+                    <th className="py-2.5 px-3 text-right">Dispute Rate</th>
+                    <th className="py-2.5 px-3">Top Defect Issue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {insights?.productInsights?.map((p: any) => (
+                    <tr key={p.sku} className="hover:bg-slate-50/70 transition">
+                      <td className="py-3 px-3 font-mono font-bold text-slate-900">{p.sku}</td>
+                      <td className="py-3 px-3 font-medium text-slate-800">{p.title}</td>
+                      <td className="py-3 px-3 text-right font-mono text-slate-600">{p.totalOrders}</td>
+                      <td className="py-3 px-3 text-right font-mono font-semibold text-slate-900">{p.complaintCount}</td>
+                      <td className="py-3 px-3 text-right font-mono">
+                        <span className={`px-2 py-0.5 rounded font-semibold ${
+                          p.complaintRatePct > 15 ? 'bg-rose-50 text-rose-800' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {p.complaintRatePct}%
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                          {p.topIssue}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 3: Recovery Queue */}
       {activeTab === 'recovery' && (
         <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between">

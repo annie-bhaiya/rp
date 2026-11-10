@@ -8,3 +8,4 @@ import { ResolutionsService } from './resolutions.service.js';
   exports: [ResolutionsService],
 })
 export class ResolutionsModule {}
+

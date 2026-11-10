@@ -55,3 +55,4 @@ export interface AiProvider {
   extractIssue(input: RedactedCaseContext): Promise<ValidatedIssue>;
   explainOptions(input: GroundedOptionsInput): Promise<ValidatedExplanation>;
 }
+

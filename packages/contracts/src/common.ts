@@ -20,3 +20,4 @@ export const ErrorResponseSchema = z.object({
   details: z.record(z.unknown()).optional(),
 });
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
+

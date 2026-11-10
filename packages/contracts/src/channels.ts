@@ -24,3 +24,4 @@ export const NotificationEventSchema = z.object({
   createdAt: z.string(),
 });
 export type NotificationEvent = z.infer<typeof NotificationEventSchema>;
+

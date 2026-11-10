@@ -100,10 +100,14 @@ The application includes capable local implementations (Docker Compose PostgreSQ
 
 ---
 
-### 7. Local Docker Desktop / PostgreSQL 16
-* **Purpose**: Running local PostgreSQL 16 container (`docker compose up -d postgres`) on port 5432.
-* **Status Needed**:
-  1. Install Docker Desktop for Windows if not yet installed.
-  2. Or run native PostgreSQL 16 service locally listening on `localhost:5432`.
-* **Local Alternative**: The application automatically supports `@electric-sql/pglite` (WebAssembly-embedded PostgreSQL 16 engine directly in Node.js) saving to `.data/postgres` whenever external PostgreSQL on port 5432 is unavailable. No manual installation required for testing or local development!
+### 7. Supabase PostgreSQL (Configured & Live!)
+* **Purpose**: Production & cloud-hosted PostgreSQL 17 database with native connection pooling and zero hosting fee.
+* **Status**: **COMPLETE / ACTIVE**
+  - **Project Name**: `resolvepay-rescue`
+  - **Project Ref**: `sizcvwkachvduchqentw`
+  - **Region**: `ap-south-1` (Mumbai)
+  - **Dashboard**: [https://supabase.com/dashboard/project/sizcvwkachvduchqentw](https://supabase.com/dashboard/project/sizcvwkachvduchqentw)
+  - **Status**: Live, 28 tables migrated, synthetic tenants, catalog, and policies seeded.
+  - **Connection URI**: Configured in `.env` via Supavisor pooler on port 5432.
+* **Offline Alternative**: If network is disconnected or `DATABASE_URL` is unset, the application automatically falls back to embedded `@electric-sql/pglite` saving to `.data/postgres`.
 

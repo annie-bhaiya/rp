@@ -34,3 +34,4 @@ ResolvePay was tested against a suite of 20 labeled synthetic evaluation scenari
 18. **CASE-18**: Unlinked WhatsApp intake — Inbound inquiry safely answered with secure order magic link.
 19. **CASE-19**: Verified email thread message — Appended to case timeline.
 20. **CASE-20**: Cheaper alternative exchange ($120 backpack for $65 poles) — Accurately calculated $65 credit + $55 cash refund difference.
+

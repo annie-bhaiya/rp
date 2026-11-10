@@ -426,3 +426,4 @@ export const auditEvents = pgTable('audit_events', {
   traceId: varchar('trace_id', { length: 128 }).notNull(),
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
 });
+

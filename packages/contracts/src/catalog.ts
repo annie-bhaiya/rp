@@ -83,3 +83,4 @@ export const CaptureCheckoutOrderDtoSchema = z.object({
   paypalOrderId: z.string().min(1),
 });
 export type CaptureCheckoutOrderDto = z.infer<typeof CaptureCheckoutOrderDtoSchema>;
+

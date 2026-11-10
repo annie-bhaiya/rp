@@ -68,3 +68,4 @@ export class DevMailboxClient implements EmailAdapter {
     return [...this.sentMails].reverse();
   }
 }
+

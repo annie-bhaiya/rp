@@ -11,4 +11,5 @@ dist
 .impeccable/mocks/
 coverage
 *.tsbuildinfo
+supabase/.temp/
 

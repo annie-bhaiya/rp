@@ -66,3 +66,4 @@ export interface PayPalAdapter {
   getRefund(refundId: string): Promise<PayPalRefundResponse>;
   verifyWebhook(params: PayPalWebhookVerificationParams): Promise<boolean>;
 }
+

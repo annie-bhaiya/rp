@@ -7,3 +7,5 @@ export * from './gemini/mock.js';
 export * from './email/types.js';
 export * from './email/client.js';
 export * from './whatsapp/client.js';
+export * from './commerce/shopify-adapter.js';
+

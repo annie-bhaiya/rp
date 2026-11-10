@@ -147,3 +147,4 @@ describe('State Machines', () => {
     expect(() => transitionPlan('COMPLETED', 'OFFERED')).toThrow();
   });
 });
+

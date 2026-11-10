@@ -103,3 +103,4 @@ export const MerchantApprovePlanDtoSchema = z.object({
   reason: z.string().optional(),
 });
 export type MerchantApprovePlanDto = z.infer<typeof MerchantApprovePlanDtoSchema>;
+

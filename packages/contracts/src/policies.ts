@@ -36,3 +36,4 @@ export const CreatePolicyDraftDtoSchema = z.object({
   ).min(1),
 });
 export type CreatePolicyDraftDto = z.infer<typeof CreatePolicyDraftDtoSchema>;
+

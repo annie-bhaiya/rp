@@ -50,3 +50,4 @@ bootstrap().catch((err) => {
   console.error('[ResolvePay API] Fatal bootstrap error:', err);
   process.exit(1);
 });
+

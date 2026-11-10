@@ -85,3 +85,4 @@ export class MockWhatsAppAdapter implements WhatsAppAdapter {
     return [...this.sentMessages];
   }
 }
+

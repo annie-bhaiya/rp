@@ -19,3 +19,4 @@ ResolvePay Rescue turns failed e-commerce purchases into verified, trustworthy r
 - **Worker**: Standalone NestJS application context running scheduled bounded batch jobs.
 - **Database**: PostgreSQL 16 managed via Drizzle ORM; zero-install embedded PGlite WebAssembly engine for offline local execution.
 - **Cloud Infrastructure**: Azure Container Apps (scale-to-zero), Azure Database for PostgreSQL Flexible Server, Azure Blob Storage (within USD 30/mo budget).
+

@@ -146,3 +146,4 @@ resource workerJob 'Microsoft.App/jobs@2024-03-01' = {
 
 output apiFqdn string = apiApp.properties.configuration.ingress.fqdn
 output postgresFqdn string = postgresServer.properties.fullyQualifiedDomainName
+

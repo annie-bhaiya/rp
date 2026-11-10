@@ -74,6 +74,20 @@ export const CaseEvidenceSchema = z.object({
 });
 export type CaseEvidence = z.infer<typeof CaseEvidenceSchema>;
 
+export const CreateEvidenceIntentDtoSchema = z.object({
+  fileName: z.string().min(1),
+  mediaType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif']),
+  fileSizeBytes: z.number().int().positive().max(10 * 1024 * 1024), // 10MB limit
+  description: z.string().optional(),
+});
+export type CreateEvidenceIntentDto = z.infer<typeof CreateEvidenceIntentDtoSchema>;
+
+export const CompleteEvidenceUploadDtoSchema = z.object({
+  contentHash: z.string().min(8),
+  description: z.string().optional(),
+});
+export type CompleteEvidenceUploadDto = z.infer<typeof CompleteEvidenceUploadDtoSchema>;
+
 export const CaseSchema = z.object({
   id: z.string().uuid(),
   tenantId: z.string().uuid(),
@@ -87,3 +101,4 @@ export const CaseSchema = z.object({
   updatedAt: z.string(),
 });
 export type Case = z.infer<typeof CaseSchema>;
+

@@ -253,3 +253,4 @@ export class PayPalRestClient implements PayPalAdapter {
     return data.verification_status === 'SUCCESS';
   }
 }
+

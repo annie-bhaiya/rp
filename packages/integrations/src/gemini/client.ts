@@ -135,3 +135,4 @@ ${optionsText}`;
     return JSON.parse(response.text || '{}') as ValidatedExplanation;
   }
 }
+

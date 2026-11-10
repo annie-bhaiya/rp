@@ -67,3 +67,4 @@ export function computeCanonicalPlanHash(plan: {
   const serialized = JSON.stringify(canonicalPayload);
   return createHash('sha256').update(serialized).digest('hex');
 }
+

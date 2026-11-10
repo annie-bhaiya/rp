@@ -127,3 +127,4 @@ pnpm test
 
 ## External Services & Resolve.md
 External credentials (Google Gemini API key, PayPal sandbox app credentials, Resend API key, Meta WhatsApp tokens, and Azure subscription) are documented in [`resolve.md`](file:///e:/ResolvePay/resolve.md). The application provides complete local mocks so everything builds, tests, and runs out-of-the-box without waiting for external accounts.
+

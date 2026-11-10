@@ -16,3 +16,4 @@ export interface EmailSendResult {
 export interface EmailAdapter {
   sendEmail(params: EmailSendParams): Promise<EmailSendResult>;
 }
+

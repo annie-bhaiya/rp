@@ -25,3 +25,4 @@ ResolvePay enforces strict financial invariants, saga idempotency, and operator 
 ### Runbook 3: Free-Tier AI Quota Limit
 - **Symptom**: 429 Rate Limit from Gemini API.
 - **Action**: The system catches the 429, logs the event, and surfaces a deterministic fallback plan draft for merchant review. Paid AI fallback is disabled by default (`AI_PAID_FALLBACK=false`).
+

@@ -44,3 +44,4 @@ export class MerchantRoleGuard implements CanActivate {
     return true;
   }
 }
+

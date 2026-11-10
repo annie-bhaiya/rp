@@ -8,3 +8,4 @@ import { CatalogService } from './catalog.service.js';
   exports: [CatalogService],
 })
 export class CatalogModule {}
+

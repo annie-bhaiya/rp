@@ -9,6 +9,7 @@ import { ResolutionsModule } from './modules/resolutions/resolutions.module.js';
 import { PoliciesModule } from './modules/policies/policies.module.js';
 import { WebhooksModule } from './modules/webhooks/webhooks.module.js';
 import { DevModule } from './modules/dev/dev.module.js';
+import { MerchantModule } from './modules/merchant/merchant.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { DevModule } from './modules/dev/dev.module.js';
     PoliciesModule,
     WebhooksModule,
     DevModule,
+    MerchantModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -29,3 +31,4 @@ export class AppModule implements NestModule {
       .forRoutes('*');
   }
 }
+

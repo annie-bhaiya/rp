@@ -4,8 +4,16 @@ import { PGlite } from '@electric-sql/pglite';
 import pg from 'pg';
 import fs from 'node:fs';
 import path from 'node:path';
+import dotenv from 'dotenv';
 import * as schema from './schema.js';
 import { sql } from 'drizzle-orm';
+
+// Ensure root .env is loaded
+let repoRoot = process.cwd();
+while (repoRoot.includes('apps') || repoRoot.includes('packages')) {
+  repoRoot = path.dirname(repoRoot);
+}
+dotenv.config({ path: path.resolve(repoRoot, '.env') });
 
 const { Pool } = pg;
 
@@ -32,10 +40,12 @@ export async function getDb(databaseUrl?: string): Promise<DrizzleDb> {
 
   // Attempt connecting to live PostgreSQL
   try {
+    const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1');
     const pool = new Pool({
       connectionString: url,
       max: 10,
-      connectionTimeoutMillis: 3000,
+      connectionTimeoutMillis: 5000,
+      ssl: isLocalhost ? undefined : { rejectUnauthorized: false },
     });
     // Test connectivity
     const client = await pool.connect();

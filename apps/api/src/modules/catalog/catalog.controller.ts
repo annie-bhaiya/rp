@@ -42,3 +42,4 @@ export class CatalogController {
     return await this.catalogService.getOrderById(orderId, req.tenantId);
   }
 }
+

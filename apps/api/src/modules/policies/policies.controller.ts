@@ -30,3 +30,4 @@ export class PoliciesController {
     return await this.policiesService.publishPolicy(dto, req.sessionInfo!);
   }
 }
+

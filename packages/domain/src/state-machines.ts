@@ -155,3 +155,4 @@ export function transitionFulfillment(current: FulfillmentStatus, next: Fulfillm
   }
   return next;
 }
+

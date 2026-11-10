@@ -35,3 +35,4 @@ export const SessionInfoSchema = z.object({
   expiresAt: z.string(),
 });
 export type SessionInfo = z.infer<typeof SessionInfoSchema>;
+

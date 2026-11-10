@@ -107,3 +107,4 @@ export class MockPayPalAdapter implements PayPalAdapter {
     return true;
   }
 }
+

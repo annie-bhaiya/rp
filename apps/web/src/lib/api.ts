@@ -21,3 +21,4 @@ export async function fetchJson<T>(url: string, options: RequestInit = {}): Prom
 
   return (await res.json()) as T;
 }
+
