@@ -1,0 +1,14 @@
+node_modules
+.pnpm-store
+dist
+.next
+.turbo
+*.log
+.env
+!.env.example
+.data/
+.impeccable/review/
+.impeccable/mocks/
+coverage
+*.tsbuildinfo
+

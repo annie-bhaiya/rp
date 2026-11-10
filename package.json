@@ -1,0 +1,24 @@
+{
+  "name": "resolvepay-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ResolvePay Rescue — Autonomous commerce dispute and remedy resolution platform",
+  "scripts": {
+    "build": "pnpm -r --filter=!apps/web build && pnpm --filter=apps/web build",
+    "test": "vitest run",
+    "lint": "eslint . --max-warnings=0",
+    "db:generate": "pnpm --filter=@resolvepay/db generate",
+    "db:migrate": "pnpm --filter=@resolvepay/db migrate",
+    "db:seed": "pnpm --filter=@resolvepay/db seed",
+    "dev:api": "pnpm --filter=@resolvepay/api start:dev",
+    "dev:worker": "pnpm --filter=@resolvepay/worker start:dev",
+    "dev:web": "pnpm --filter=@resolvepay/web dev",
+    "dev": "docker compose up -d postgres && pnpm dev:api"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "packageManager": "pnpm@9.15.9"
+}
