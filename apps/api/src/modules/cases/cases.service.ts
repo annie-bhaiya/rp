@@ -44,8 +44,12 @@ export class CasesService {
     }
 
     // Verify customer owns this order if actor is CUSTOMER
-    if (session.actorType === 'CUSTOMER' && session.orderId && session.orderId !== order.id) {
-      throw new ForbiddenException('Not authorized to open case for this order');
+    if (session.actorType === 'CUSTOMER') {
+      if (session.orderId && session.orderId !== order.id) {
+        if (session.customerEmail && session.customerEmail.toLowerCase() !== order.customerEmail.toLowerCase()) {
+          throw new ForbiddenException('Not authorized to open case for this order');
+        }
+      }
     }
 
     const [newCase] = await db

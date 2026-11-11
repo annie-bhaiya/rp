@@ -3,11 +3,12 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { ShoppingBag, ArrowRight, ShieldAlert, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ShoppingBag, ArrowRight, ShieldAlert, CheckCircle2, AlertCircle, Zap } from 'lucide-react';
 import { fetchJson } from '../lib/api';
 
 export default function StorefrontPage() {
-  const [buyingVariantId, setBuyingVariantId] = useState<string | null>(null);
+  const [processingVariantId, setProcessingVariantId] = useState<string | null>(null);
+  const [processingType, setProcessingType] = useState<'paypal' | 'demo' | null>(null);
   const [orderResult, setOrderResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,11 +17,11 @@ export default function StorefrontPage() {
     queryFn: () => fetchJson<any>('/api/v1/catalog?tenantSlug=default-merchant'),
   });
 
-  const handleBuyNow = async (variantId: string) => {
-    setBuyingVariantId(variantId);
+  const handlePayPalCheckout = async (variantId: string) => {
+    setProcessingVariantId(variantId);
+    setProcessingType('paypal');
     setError(null);
     try {
-      // 1. Create order
       const createRes = await fetchJson<any>('/api/v1/checkout/orders', {
         method: 'POST',
         body: JSON.stringify({
@@ -31,22 +32,45 @@ export default function StorefrontPage() {
         }),
       });
 
-      // 2. Capture immediately in sandbox demo mode
-      const captureRes = await fetchJson<any>(`/api/v1/checkout/orders/${createRes.orderId}/capture`, {
+      if (createRes.approveUrl) {
+        window.location.href = createRes.approveUrl;
+      } else {
+        throw new Error('No PayPal approval link returned by checkout service.');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to initiate PayPal checkout.');
+      setProcessingVariantId(null);
+      setProcessingType(null);
+    }
+  };
+
+  const handleInstantDemoBuy = async (variantId: string) => {
+    setProcessingVariantId(variantId);
+    setProcessingType('demo');
+    setError(null);
+    try {
+      const createRes = await fetchJson<any>('/api/v1/checkout/orders', {
         method: 'POST',
-        body: JSON.stringify({ paypalOrderId: createRes.paypalOrderId }),
+        body: JSON.stringify({
+          tenantSlug: 'default-merchant',
+          customerEmail: 'alex.customer@example.com',
+          customerName: 'Alex Johnson',
+          instantDemo: true,
+          items: [{ variantId, quantity: 1 }],
+        }),
       });
 
       setOrderResult({
         orderId: createRes.orderId,
         orderReference: createRes.orderReference,
-        status: captureRes.status,
-        captureId: captureRes.paypalCaptureId,
+        status: createRes.status,
+        captureId: createRes.captureId,
       });
-    } catch (err) {
-      setError((err as Error).message);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create instant demo order.');
     } finally {
-      setBuyingVariantId(null);
+      setProcessingVariantId(null);
+      setProcessingType(null);
     }
   };
 
@@ -88,9 +112,9 @@ export default function StorefrontPage() {
         <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-5 flex items-start space-x-3">
           <CheckCircle2 className="w-5 h-5 text-emerald-800 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h3 className="text-sm font-semibold text-emerald-900">Sandbox Purchase Successful!</h3>
+            <h3 className="text-sm font-semibold text-emerald-900">Purchase Completed Successfully!</h3>
             <p className="text-xs text-emerald-800 mt-1">
-              Order <strong>{orderResult.orderReference}</strong> has been captured via PayPal (Capture ID: <span className="font-mono">{orderResult.captureId}</span>).
+              Order <strong>{orderResult.orderReference}</strong> has been confirmed (Capture ID: <span className="font-mono">{orderResult.captureId}</span>).
             </p>
             <div className="mt-3">
               <Link
@@ -125,6 +149,7 @@ export default function StorefrontPage() {
             {data?.products?.map((product: any) => {
               const variant = product.variants?.[0];
               const priceDollars = variant ? (Number(variant.price.minor) / 100).toFixed(2) : '0.00';
+              const isBuying = processingVariantId === variant?.id;
 
               return (
                 <div
@@ -156,19 +181,33 @@ export default function StorefrontPage() {
                       </p>
                     </div>
 
-                    <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
-                      <div className="text-lg font-bold text-slate-900 font-mono">
-                        ${priceDollars}
-                        <span className="text-xs text-slate-500 font-normal ml-1">USD</span>
+                    <div className="mt-6 pt-4 border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs text-slate-500 uppercase tracking-wider font-medium">Price</span>
+                        <div className="text-lg font-bold text-slate-900 font-mono">
+                          ${priceDollars}
+                          <span className="text-xs text-slate-500 font-normal ml-1">USD</span>
+                        </div>
                       </div>
 
-                      <button
-                        onClick={() => variant && handleBuyNow(variant.id)}
-                        disabled={buyingVariantId === variant?.id}
-                        className="inline-flex items-center px-3.5 py-1.5 rounded-md text-xs font-semibold text-white bg-blue-800 hover:bg-blue-700 disabled:opacity-50 transition"
-                      >
-                        {buyingVariantId === variant?.id ? 'Processing...' : 'Buy with PayPal'}
-                      </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => variant && handlePayPalCheckout(variant.id)}
+                          disabled={isBuying}
+                          className="inline-flex items-center justify-center px-3 py-2 rounded-md text-xs font-semibold text-white bg-blue-800 hover:bg-blue-700 disabled:opacity-50 transition"
+                        >
+                          {isBuying && processingType === 'paypal' ? 'Redirecting...' : 'Buy with PayPal'}
+                        </button>
+
+                        <button
+                          onClick={() => variant && handleInstantDemoBuy(variant.id)}
+                          disabled={isBuying}
+                          className="inline-flex items-center justify-center px-3 py-2 rounded-md text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 disabled:opacity-50 transition"
+                        >
+                          <Zap className="w-3.5 h-3.5 mr-1 text-amber-600" />
+                          {isBuying && processingType === 'demo' ? 'Creating...' : '1-Click Demo Buy'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -180,4 +219,3 @@ export default function StorefrontPage() {
     </div>
   );
 }
-

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -34,17 +34,54 @@ export default function OrderDisputePage() {
   const [issueType, setIssueType] = useState('damaged');
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+
+  // Auto-establish customer session for this order if not already signed in
+  useEffect(() => {
+    async function initSession() {
+      try {
+        const session = await fetchJson<any>('/api/v1/auth/session');
+        if (session && session.actorType === 'CUSTOMER') {
+          setSessionReady(true);
+          return;
+        }
+      } catch {
+        // No active session
+      }
+
+      try {
+        await fetchJson<any>('/api/v1/auth/login-dev', {
+          method: 'POST',
+          body: JSON.stringify({
+            persona: 'CUSTOMER',
+            orderId,
+            tenantSlug: 'default-merchant',
+          }),
+        });
+      } catch (err) {
+        console.warn('Auto-session notice:', err);
+      } finally {
+        setSessionReady(true);
+      }
+    }
+
+    if (orderId) {
+      initSession();
+    }
+  }, [orderId]);
 
   // 1. Fetch Order
   const { data: order, isLoading: orderLoading } = useQuery({
     queryKey: ['order', orderId],
     queryFn: () => fetchJson<any>(`/api/v1/orders/${orderId}`),
+    enabled: sessionReady && !!orderId,
   });
 
   // 2. Fetch Cases for this tenant
   const { data: casesList, refetch: refetchCases } = useQuery({
     queryKey: ['cases'],
     queryFn: () => fetchJson<any[]>('/api/v1/cases'),
+    enabled: sessionReady,
   });
 
   const activeCaseSummary = casesList?.find((c: any) => c.orderId === orderId);

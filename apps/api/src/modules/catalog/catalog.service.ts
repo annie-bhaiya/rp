@@ -88,6 +88,9 @@ export class CatalogService {
     paypalOrderId: string;
     approveUrl: string;
     total: { currency: string; minor: string };
+    status?: string;
+    captureId?: string;
+    instantDemo?: boolean;
   }> {
     const db = await getDb();
     const [tenant] = await db.select().from(tenants).where(eq(tenants.slug, dto.tenantSlug)).limit(1);
@@ -155,6 +158,92 @@ export class CatalogService {
 
     const orderReference = `ORD-${Date.now().toString().slice(-6)}`;
 
+    // Instant frictionless demo purchase option
+    if (dto.instantDemo) {
+      const demoCaptureId = `PAYPAL-CAP-DEMO-${Date.now().toString().slice(-6)}`;
+      const [order] = await db
+        .insert(orders)
+        .values({
+          tenantId: tenant.id,
+          orderReference,
+          customerId: customer.id,
+          customerEmail: customer.email,
+          customerName: customer.name,
+          status: 'PAID',
+          currency: tenant.defaultCurrency,
+          subtotalMinor: subtotal.minor,
+          taxMinor: tax.minor,
+          shippingMinor: shipping.minor,
+          totalMinor: total.minor,
+          paypalOrderId: `PAYPAL-ORD-DEMO-${Date.now().toString().slice(-6)}`,
+          paypalCaptureId: demoCaptureId,
+        })
+        .returning();
+
+      for (const item of itemsToInsert) {
+        await db.insert(orderItems).values({
+          tenantId: tenant.id,
+          orderId: order.id,
+          variantId: item.variantId,
+          sku: item.sku,
+          title: item.title,
+          quantity: item.quantity,
+          unitPriceMinor: item.unitPriceMinor,
+          totalPriceMinor: item.totalPriceMinor,
+        });
+      }
+
+      await db.insert(captures).values({
+        tenantId: order.tenantId,
+        orderId: order.id,
+        providerCaptureId: demoCaptureId,
+        amountMinor: order.totalMinor,
+        currency: order.currency,
+        status: 'COMPLETED',
+        refundedMinor: '0',
+      });
+
+      const journalTxn = buildOrderCaptureJournal({
+        orderId: order.id,
+        subtotalMinor: order.subtotalMinor,
+        taxMinor: order.taxMinor,
+        shippingMinor: order.shippingMinor,
+        totalMinor: order.totalMinor,
+        currency: order.currency,
+      });
+
+      const [txRecord] = await db
+        .insert(journalTransactions)
+        .values({
+          tenantId: order.tenantId,
+          businessEventKey: journalTxn.businessEventKey,
+          description: journalTxn.description,
+          currency: journalTxn.currency,
+        })
+        .returning();
+
+      for (const entry of journalTxn.entries) {
+        await db.insert(journalEntries).values({
+          tenantId: order.tenantId,
+          transactionId: txRecord.id,
+          accountCode: entry.accountCode,
+          debitMinor: entry.debitMinor,
+          creditMinor: entry.creditMinor,
+        });
+      }
+
+      return {
+        orderId: order.id,
+        orderReference,
+        paypalOrderId: order.paypalOrderId!,
+        approveUrl: '',
+        total,
+        status: 'PAID',
+        captureId: demoCaptureId,
+        instantDemo: true,
+      };
+    }
+
     // Call PayPal Orders create
     const paypalOrder = await this.paypalAdapter.createOrder({
       orderReference,
@@ -220,7 +309,11 @@ export class CatalogService {
     paypalCaptureId: string;
   }> {
     const db = await getDb();
-    const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+    const [order] = isUuid
+      ? await db.select().from(orders).where(eq(orders.id, orderId)).limit(1)
+      : await db.select().from(orders).where(eq(orders.orderReference, orderId)).limit(1);
+
     if (!order) throw new NotFoundException(`Order not found: ${orderId}`);
 
     if (order.status === 'PAID') {
@@ -233,7 +326,16 @@ export class CatalogService {
     }
 
     // Call PayPal capture
-    const captureResult = await this.paypalAdapter.captureOrder(dto.paypalOrderId || order.paypalOrderId!);
+    let captureResult;
+    try {
+      captureResult = await this.paypalAdapter.captureOrder(dto.paypalOrderId || order.paypalOrderId!);
+    } catch (err: any) {
+      if (err.message?.includes('ORDER_NOT_APPROVED')) {
+        throw new BadRequestException('PayPal Order has not yet been approved by payer. Please complete payment approval on PayPal first.');
+      }
+      throw new BadRequestException(`PayPal capture failed: ${err.message}`);
+    }
+
     if (captureResult.status !== 'COMPLETED') {
       throw new BadRequestException(`PayPal capture status is ${captureResult.status}`);
     }
@@ -299,7 +401,8 @@ export class CatalogService {
 
   async getOrderById(orderId: string, tenantId?: string): Promise<Order> {
     const db = await getDb();
-    const conditions = [eq(orders.id, orderId)];
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+    const conditions = isUuid ? [eq(orders.id, orderId)] : [eq(orders.orderReference, orderId)];
     if (tenantId) conditions.push(eq(orders.tenantId, tenantId));
 
     const [order] = await db.select().from(orders).where(and(...conditions)).limit(1);

@@ -44,9 +44,16 @@ export class AuthController {
   async loginDev(
     @Body('persona') persona: 'OWNER' | 'APPROVER' | 'JUDGE' | 'CUSTOMER',
     @Body('tenantSlug') tenantSlug: string,
+    @Body('orderId') orderId: string,
+    @Body('email') email: string,
     @Res({ passthrough: true }) res: Response
   ) {
-    const result = await this.authService.loginDevPersona(persona || 'OWNER', tenantSlug || 'default-merchant');
+    const result = await this.authService.loginDevPersona(
+      persona || 'OWNER',
+      tenantSlug || 'default-merchant',
+      orderId,
+      email
+    );
 
     res.cookie('resolvepay_session', result.token, {
       httpOnly: true,

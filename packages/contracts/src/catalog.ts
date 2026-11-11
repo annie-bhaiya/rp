@@ -70,6 +70,7 @@ export const CreateCheckoutOrderDtoSchema = z.object({
   tenantSlug: z.string().default('default-merchant'),
   customerEmail: z.string().email(),
   customerName: z.string().min(1),
+  instantDemo: z.boolean().optional(),
   items: z.array(
     z.object({
       variantId: z.string().uuid(),

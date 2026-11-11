@@ -15,7 +15,7 @@ import { WebhooksService } from './webhooks.service.js';
 export class WebhooksController {
   constructor(private webhooksService: WebhooksService) {}
 
-  @Post('paypal/:connectionKey')
+  @Post(['paypal', 'paypal/:connectionKey'])
   async handlePayPalWebhook(
     @Headers() headers: Record<string, string>,
     @Body() body: Record<string, unknown>,
@@ -25,7 +25,7 @@ export class WebhooksController {
     return await this.webhooksService.handlePayPalWebhook(headers, body, rawBody);
   }
 
-  @Get('whatsapp/:connectionKey')
+  @Get(['whatsapp', 'whatsapp/:connectionKey'])
   verifyWhatsApp(
     @Query('hub.mode') mode: string,
     @Query('hub.verify_token') token: string,
@@ -34,7 +34,7 @@ export class WebhooksController {
     return this.webhooksService.verifyWhatsAppChallenge(mode, token, challenge);
   }
 
-  @Post('whatsapp/:connectionKey')
+  @Post(['whatsapp', 'whatsapp/:connectionKey'])
   async handleWhatsAppWebhook(
     @Headers() headers: Record<string, string>,
     @Body() body: any,
@@ -44,7 +44,7 @@ export class WebhooksController {
     return await this.webhooksService.handleWhatsAppWebhook(headers, body, rawBody);
   }
 
-  @Post('email/:connectionKey')
+  @Post(['email', 'email/:connectionKey'])
   async handleEmailWebhook(
     @Headers() headers: Record<string, string>,
     @Body() body: any,

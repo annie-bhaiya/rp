@@ -10,6 +10,7 @@ import {
   orders,
   eq,
   and,
+  desc,
 } from '@resolvepay/db';
 import {
   CustomerAccessRequestDto,
@@ -161,7 +162,12 @@ export class AuthService {
     };
   }
 
-  async loginDevPersona(persona: 'OWNER' | 'APPROVER' | 'JUDGE' | 'CUSTOMER', tenantSlug: string = 'default-merchant'): Promise<{ session: SessionInfo; token: string }> {
+  async loginDevPersona(
+    persona: 'OWNER' | 'APPROVER' | 'JUDGE' | 'CUSTOMER',
+    tenantSlug: string = 'default-merchant',
+    orderIdParam?: string,
+    emailParam?: string
+  ): Promise<{ session: SessionInfo; token: string }> {
     const db = await getDb();
     const [tenant] = await db.select().from(tenants).where(eq(tenants.slug, tenantSlug)).limit(1);
     if (!tenant) throw new NotFoundException(`Tenant not found: ${tenantSlug}`);
@@ -179,9 +185,26 @@ export class AuthService {
       email = 'judge@hackathon.demo';
     } else if (persona === 'CUSTOMER') {
       actorType = 'CUSTOMER';
-      email = 'alex.customer@example.com';
-      const [order] = await db.select().from(orders).where(eq(orders.tenantId, tenant.id)).limit(1);
-      orderId = order?.id;
+      email = emailParam || 'alex.customer@example.com';
+      if (orderIdParam) {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderIdParam);
+        const [order] = isUuid
+          ? await db.select().from(orders).where(and(eq(orders.id, orderIdParam), eq(orders.tenantId, tenant.id))).limit(1)
+          : await db.select().from(orders).where(and(eq(orders.orderReference, orderIdParam), eq(orders.tenantId, tenant.id))).limit(1);
+        if (order) {
+          orderId = order.id;
+          email = order.customerEmail;
+        }
+      }
+      if (!orderId) {
+        const [order] = await db
+          .select()
+          .from(orders)
+          .where(and(eq(orders.tenantId, tenant.id), eq(orders.customerEmail, email)))
+          .orderBy(desc(orders.createdAt))
+          .limit(1);
+        orderId = order?.id;
+      }
     }
 
     const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);

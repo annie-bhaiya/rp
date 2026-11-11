@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Inbox,
@@ -31,39 +31,68 @@ export default function MerchantOperationsPage() {
   const [inspectionNotes, setInspectionNotes] = useState('Physical item inspected: defective split zipper confirmed. Eligible for warranty remedy.');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+
+  useEffect(() => {
+    async function ensureMerchantSession() {
+      try {
+        const session = await fetchJson<any>('/api/v1/auth/session');
+        if (session && session.actorType === 'MERCHANT') {
+          setSessionReady(true);
+          return;
+        }
+      } catch {
+        // no session
+      }
+
+      try {
+        await fetchJson<any>('/api/v1/auth/login-dev', {
+          method: 'POST',
+          body: JSON.stringify({ persona: 'OWNER', tenantSlug: 'default-merchant' }),
+        });
+      } catch (err) {
+        console.warn('Could not auto-login merchant owner:', err);
+      } finally {
+        setSessionReady(true);
+      }
+    }
+
+    ensureMerchantSession();
+  }, []);
 
   // 1. Fetch Cases
   const { data: casesList, refetch: refetchCases } = useQuery({
     queryKey: ['merchant-cases'],
     queryFn: () => fetchJson<any[]>('/api/v1/cases'),
+    enabled: sessionReady,
   });
 
   // 2. Fetch Selected Case Details
   const { data: caseDetails, refetch: refetchDetails } = useQuery({
     queryKey: ['merchant-case-details', selectedCaseId],
     queryFn: () => fetchJson<any>(`/api/v1/cases/${selectedCaseId}`),
-    enabled: !!selectedCaseId,
+    enabled: sessionReady && !!selectedCaseId,
   });
 
   // 3. Fetch Recovery Queue
   const { data: recoveryQueue, refetch: refetchRecovery } = useQuery({
     queryKey: ['recovery-queue'],
     queryFn: () => fetchJson<any[]>('/api/v1/merchant/recovery'),
-    enabled: activeTab === 'recovery',
+    enabled: sessionReady && activeTab === 'recovery',
   });
 
   // 4. Fetch Policies
   const { data: policies, refetch: refetchPolicies } = useQuery({
     queryKey: ['merchant-policies'],
     queryFn: () => fetchJson<any[]>('/api/v1/merchant/policies'),
-    enabled: activeTab === 'policies',
+    enabled: sessionReady && activeTab === 'policies',
   });
 
   // 5. Fetch Insights
   const { data: insights, refetch: refetchInsights } = useQuery({
     queryKey: ['merchant-insights'],
     queryFn: () => fetchJson<any>('/api/v1/merchant/insights'),
-    enabled: activeTab === 'insights',
+    enabled: sessionReady && activeTab === 'insights',
   });
 
   // Merchant Approve Mutation

@@ -27,7 +27,7 @@ export class SessionAuthGuard implements CanActivate {
 
 @Injectable()
 export class MerchantRoleGuard implements CanActivate {
-  constructor(private allowedRoles: UserRole[] = ['MERCHANT_OWNER', 'MERCHANT_APPROVER', 'JUDGE']) {}
+  private allowedRoles: UserRole[] = ['MERCHANT_OWNER', 'MERCHANT_APPROVER', 'JUDGE'];
 
   canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest<AuthenticatedRequest>();

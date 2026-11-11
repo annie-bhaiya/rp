@@ -10,6 +10,7 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 import { runMigrations, runSeed } from '@resolvepay/db';
+import { AllExceptionsFilter } from './common/filters.js';
 
 async function bootstrap() {
   console.log('[ResolvePay API] Bootstrapping NestJS server...');
@@ -28,6 +29,7 @@ async function bootstrap() {
     },
   });
 
+  app.useGlobalFilters(new AllExceptionsFilter());
   app.setGlobalPrefix('api/v1');
 
   // Swagger OpenAPI Setup
