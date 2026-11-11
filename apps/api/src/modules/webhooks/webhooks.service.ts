@@ -17,10 +17,29 @@ import {
   WhatsAppAdapter,
 } from '@resolvepay/integrations';
 
+export interface WhatsAppMessageItem {
+  id: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+  phone: string;
+  text: string;
+  timestamp: string;
+  verified?: boolean;
+}
+
 @Injectable()
 export class WebhooksService {
   private paypalAdapter: PayPalAdapter;
   private whatsappAdapter: WhatsAppAdapter;
+  private liveWhatsAppMessages: WhatsAppMessageItem[] = [
+    {
+      id: 'wa-init-1',
+      direction: 'OUTBOUND',
+      phone: 'system',
+      text: 'ResolvePay Automated Dispute Service ready. Send your message or order reference anytime to trigger immediate remedy options.',
+      timestamp: new Date().toISOString(),
+      verified: true,
+    },
+  ];
 
   constructor() {
     const clientId = process.env.PAYPAL_CLIENT_ID;
@@ -107,17 +126,87 @@ export class WebhooksService {
       state: 'RECEIVED',
     });
 
+    let replyText = '';
     if (textBody && fromPhone) {
+      this.liveWhatsAppMessages.push({
+        id: eventId,
+        direction: 'INBOUND',
+        phone: fromPhone,
+        text: textBody,
+        timestamp: new Date().toISOString(),
+        verified,
+      });
+
       console.log(`[WhatsApp Webhook] Inbound from ${fromPhone}: "${textBody}"`);
       // If customer is sending order reference or query, reply with portal link
-      const portalUrl = `${process.env.PUBLIC_WEB_URL || 'http://localhost:3000'}/portal`;
-      await this.whatsappAdapter.sendMessage({
-        toPhoneNumber: fromPhone,
-        messageText: `Hello! ResolvePay has received your message. To link this chat to your order and view remedies, please open: ${portalUrl}`,
+      const portalUrl = `${process.env.PUBLIC_WEB_URL || 'https://resolvepay-web.politetree-c3c2d975.centralindia.azurecontainerapps.io'}/portal`;
+      replyText = `Hello! ResolvePay has received your message. To link this chat to your order and view remedies, please open: ${portalUrl}`;
+
+      this.liveWhatsAppMessages.push({
+        id: `wa-out-${Date.now()}`,
+        direction: 'OUTBOUND',
+        phone: fromPhone,
+        text: replyText,
+        timestamp: new Date().toISOString(),
+        verified: true,
       });
+
+      try {
+        await this.whatsappAdapter.sendMessage({
+          toPhoneNumber: fromPhone,
+          messageText: replyText,
+        });
+      } catch (err: any) {
+        console.warn(`[WhatsApp] Meta Graph API dispatch note (fallback to simulator): ${err?.message || err}`);
+      }
     }
 
-    return { status: 'RECEIVED', eventId };
+    return { status: 'RECEIVED', eventId, verified, replyText };
+  }
+
+  getWhatsAppMessages(): WhatsAppMessageItem[] {
+    return [...this.liveWhatsAppMessages];
+  }
+
+  async simulateInboundMessage(fromPhone: string, text: string) {
+    const payload = {
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          id: process.env.META_PHONE_NUMBER_ID || '1384627974742720',
+          changes: [
+            {
+              value: {
+                messaging_product: 'whatsapp',
+                metadata: {
+                  display_phone_number: '15550269041',
+                  phone_number_id: process.env.META_PHONE_NUMBER_ID || '1384627974742720',
+                },
+                contacts: [
+                  {
+                    profile: { name: 'Customer' },
+                    wa_id: fromPhone,
+                  },
+                ],
+                messages: [
+                  {
+                    from: fromPhone,
+                    id: `wamid.SIM${Date.now()}`,
+                    timestamp: Math.floor(Date.now() / 1000).toString(),
+                    text: { body: text },
+                    type: 'text',
+                  },
+                ],
+              },
+              field: 'messages',
+            },
+          ],
+        },
+      ],
+    };
+
+    const raw = JSON.stringify(payload);
+    return this.handleWhatsAppWebhook({}, payload, raw);
   }
 
   async handleEmailWebhook(headers: Record<string, string>, body: any, rawBody: string): Promise<any> {

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ShieldCheck, User, Store, Inbox, Mail, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, User, Store, Inbox, Mail, RefreshCw, CheckCircle2, Smartphone } from 'lucide-react';
 import { fetchJson } from '../lib/api';
 
 export function Navbar() {
@@ -92,8 +92,8 @@ export function Navbar() {
                 pathname === '/mailbox' ? 'text-blue-800 font-semibold' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Mail className="w-4 h-4" />
-              <span>Dev Mailbox</span>
+              <Smartphone className="w-4 h-4 text-emerald-600" />
+              <span>WhatsApp & Comms</span>
             </Link>
           </nav>
 

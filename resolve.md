@@ -11,27 +11,62 @@ Both the **Frontend Web App** and **Backend REST API** are running live on Azure
 * **Customer & Merchant Web App**:
   👉 **[https://resolvepay-web.politetree-c3c2d975.centralindia.azurecontainerapps.io](https://resolvepay-web.politetree-c3c2d975.centralindia.azurecontainerapps.io)**
   - **Storefront & Catalog**: `/`
+  - **WhatsApp Live Simulator & Dev Comms Hub**: `/mailbox`
   - **Customer Self-Service Portal**: `/portal` (or `/portal/orders/<orderId>`)
   - **Merchant Command Center & Intelligence**: `/merchant`
-  - **In-Memory Dev Mailbox**: `/mailbox`
 
 * **Backend REST API**:
   👉 **[https://resolvepay-api.politetree-c3c2d975.centralindia.azurecontainerapps.io](https://resolvepay-api.politetree-c3c2d975.centralindia.azurecontainerapps.io)**
   - Health probe: `/api/v1/health`
   - Catalog: `/api/v1/catalog?tenantSlug=default-merchant`
   - Webhooks: `/api/v1/webhooks/*`
+  - Dev Comms API: `/api/v1/dev/whatsapp`
 
 * **Cloud Infrastructure**:
   - **Resource Group**: `rg-resolvepay-centralindia` (Region: Central India)
   - **Container Apps Environment**: `cae-resolvepay`
   - **Azure Container Registry**: `crresolvepay.azurecr.io`
-    - API Image: `crresolvepay.azurecr.io/resolvepay-api:v5` (Status: Healthy, 1 replica)
-    - Web Image: `crresolvepay.azurecr.io/resolvepay-web:v4` (Status: Healthy, 1 replica)
+    - API Image: `crresolvepay.azurecr.io/resolvepay-api:v6` (Status: Healthy, 1 replica)
+    - Web Image: `crresolvepay.azurecr.io/resolvepay-web:v5` (Status: Healthy, 1 replica)
   - **Database**: Cloud Supabase PostgreSQL 17 (`ap-south-1` Mumbai)
 
 ---
 
-## 🔍 Root Cause Analysis & Fixes Implemented
+## 📱 Meta WhatsApp Policy Requirements & Live Alternative
+
+### Why Meta Shows "business doesn't meet WhatsApp's policy requirements"
+When attempting to set up a WhatsApp Business Account (WABA) or provision a live phone number in Meta's Developer Dashboard, you received:
+> *"You can't complete the setup process because your business doesn't meet WhatsApp's policy requirements. If you think this is incorrect, reach out to your Business Solution Provider for help."*
+
+* **Root Cause**:
+  To protect against spam and fraud, Meta requires formal **Business Verification** for any Meta Business Portfolio that provisions WhatsApp Business Accounts. If a developer account is registered under a personal profile or an unverified business organization without official legal incorporation documents (e.g. GSTIN, Certificate of Incorporation, or utility bills), Meta blocks account creation with this policy warning.
+
+* **What Is Required If You Want Real SIM-to-SIM WhatsApp in the Future**:
+  1. Open [Meta Business Settings](https://business.facebook.com/settings/info).
+  2. Complete **Business Verification** by uploading legal entity documents and verifying domain ownership.
+  3. Alternatively, connect through an authorized WhatsApp Business Solution Provider (BSP) such as Twilio or 360dialog.
+
+---
+
+### 🚀 Live Interactive WhatsApp Webhook Simulator (Now Available!)
+
+In accordance with our architecture guidelines, we have implemented an **Interactive WhatsApp Webhook Simulator & Payload Inspector** directly within the live web application at:
+
+👉 **[https://resolvepay-web.politetree-c3c2d975.centralindia.azurecontainerapps.io/mailbox](https://resolvepay-web.politetree-c3c2d975.centralindia.azurecontainerapps.io/mailbox)**
+
+#### How It Works:
+1. **Identical Production Pipeline**:
+   The simulator constructs the exact Meta WhatsApp Cloud API v21.0 JSON payload that Meta servers dispatch.
+2. **Signature & Persistence**:
+   The webhook passes through HMAC-SHA256 signature verification, inserts the audit record into the Supabase Cloud PostgreSQL `webhook_inbox` table, and transitions state to `RECEIVED`.
+3. **Automated Response Dispatch**:
+   The backend bot processes the complaint, maps the customer phone number (`+91 9068662279`), and generates an automated resolution message containing a direct link to the Customer Resolution Portal.
+4. **Live Inspection**:
+   You can view the full smartphone chat conversation with WhatsApp-styled bubbles, delivery receipts, and an expandable JSON inspector showing the raw webhook event.
+
+---
+
+## 🔍 Other Root Causes & Fixes Implemented
 
 ### 1. PayPal "Internal Server Error" on Buy
 * **Root Cause 1 (`ORDER_NOT_APPROVED` 422)**:
@@ -63,63 +98,6 @@ Both the **Frontend Web App** and **Backend REST API** are running live on Azure
 
 ---
 
-## 📱 User Action Items
-
-### 1. Complete Meta WhatsApp Cloud API Webhook Handshake
-The backend endpoint is live and verified with the challenge protocol:
-
-1. Open the [Meta for Developers App Dashboard](https://developers.facebook.com/apps/).
-2. Select your app -> **WhatsApp** -> **Configuration**.
-3. Under **Webhook**, click **Edit**:
-   - **Callback URL**:
-     ```text
-     https://resolvepay-api.politetree-c3c2d975.centralindia.azurecontainerapps.io/api/v1/webhooks/whatsapp
-     ```
-   - **Verify Token**:
-     ```text
-     resolvepay_meta_verify_2026
-     ```
-4. Click **Verify and save**.
-5. Under **Webhook fields**, click **Manage** and subscribe to:
-   - ✅ **`messages`**
-
-> [!NOTE]
-> If testing incoming WhatsApp messages, ensure your personal WhatsApp phone number is added to the authorized recipient list under **WhatsApp > API Setup > To (Manage phone number list)** in Meta's dashboard.
-
----
-
-### 2. Testing PayPal Sandbox Purchases (Optional)
-If you wish to test the full live redirect flow instead of the **1-Click Instant Demo Buy**:
-
-1. On the storefront [https://resolvepay-web.politetree-c3c2d975.centralindia.azurecontainerapps.io](https://resolvepay-web.politetree-c3c2d975.centralindia.azurecontainerapps.io), select any item and click **"Buy with PayPal"**.
-2. You will be redirected to PayPal Sandbox.
-3. Log in using a PayPal Sandbox Personal/Buyer account created in your [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/accounts):
-   - Example default test buyer credentials:
-     - **Email**: `sb-buyer@business.example.com` (or your sandbox personal account)
-     - **Password**: (your sandbox personal password)
-4. Click **Complete Purchase**.
-5. You will be redirected back to ResolvePay `/checkout/success`, which captures the funds and displays the order reference.
-
----
-
-### 3. How to Verify the Entire System in Under 60 Seconds
-You can test the full autonomous workflow right now directly in your browser:
-
-1. **Place an Order**: Go to [https://resolvepay-web.politetree-c3c2d975.centralindia.azurecontainerapps.io](https://resolvepay-web.politetree-c3c2d975.centralindia.azurecontainerapps.io) and click **"1-Click Demo Buy"** on any product.
-2. **Open Dispute**: On the confirmation screen, click **"Open Resolution Case"**.
-3. **Select Remedy**: Choose an issue (e.g., "damaged") and submit. Review the AI-generated proposals and click **"Accept Remedy"**.
-4. **Merchant Warehouse Inspection & Approval**:
-   - Open [https://resolvepay-web.politetree-c3c2d975.centralindia.azurecontainerapps.io/merchant](https://resolvepay-web.politetree-c3c2d975.centralindia.azurecontainerapps.io/merchant).
-   - Click on the new case.
-   - Click **"Authorize Plan"**.
-   - Under Physical Return Inspection, click **"Confirm & Pass Inspection"**.
-   - Click **"Execute Resolution Saga"**.
-5. **View Subledger & Insights**:
-   - Switch to the **Insights** tab to see real-time dispute metrics and product defect rates.
-   - Click **Export Reconciliation CSV** to download the double-entry accounting audit trail.
-
----
-
 ## 📊 Live Verification Test Results (100% Passed)
 
 | # | Test Component | Status | Details |
@@ -138,3 +116,4 @@ You can test the full autonomous workflow right now directly in your browser:
 | 12 | Reconciliation Export | **PASS** | Valid CSV with debit/credit balanced account entries |
 | 13 | Callback Pages | **PASS** | `/checkout/success` & `/checkout/cancel` render 200 OK |
 | 14 | WhatsApp Webhook Handshake | **PASS** | `hub.challenge` validated and returned with 200 OK |
+| 15 | Live WhatsApp Simulator | **PASS** | Full bidirectional simulation, database webhook persistence, and instant portal link |
