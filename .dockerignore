@@ -10,3 +10,7 @@ dist
 **/dist
 .pnpm-store
 **/.pnpm-store
+.cache
+**/.cache
+apimatic
+**/apimatic

@@ -9,6 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@bryntum/core-enterprise": "8.0.1",
+    "@bryntum/gantt-enterprise": "8.0.1",
+    "@bryntum/gantt-react-enterprise": "8.0.1",
+    "@bryntum/grid-enterprise": "8.0.1",
     "@resolvepay/contracts": "workspace:*",
     "@resolvepay/domain": "workspace:*",
     "@tanstack/react-query": "^5.62.7",
@@ -29,4 +33,3 @@
     "typescript": "^5.7.2"
   }
 }
-

@@ -1,0 +1,120 @@
+---
+title: ResolvePay Rescue Developer Hub
+description: The Ledger of Trust — Developer guides, typed SDKs, and API references for autonomous dispute resolution and remedy reconciliation
+---
+
+Welcome to the **ResolvePay Rescue Developer Hub** — the unified integration headquarters for merchants, financial operations, and autonomous agents.
+
+ResolvePay Rescue reimagines post-purchase dispute operations by treating dispute resolution not as combative email negotiations, but as deterministic, immutable contractual state machines governed by **"The Ledger of Trust"**.
+
+---
+
+## What's Included
+
+<Cards>
+
+<Card title="Official Client SDKs" href="/sdks">
+Production-ready, type-safe client libraries for TypeScript/Node.js, Python, and C#/.NET with automated token handling, retries, and typed models.
+</Card>
+
+<Card title="AI Context Plugin" href="/plugin">
+Context bundle for coding agents (Cursor, Claude Code, GitHub Copilot, Antigravity) allowing agents to generate idiomatic integration code without guessing.
+</Card>
+
+<Card title="Interactive API Reference" href="/api">
+Complete OpenAPI-powered documentation playground with live endpoint testing, parameter schema exploration, and request builders.
+</Card>
+
+<Card title="LLM Context Export" href="/llms.txt" external>
+Single-file Markdown and structured specifications designed for immediate consumption by Large Language Models and developer assistants.
+</Card>
+
+</Cards>
+
+---
+
+## Architectural Principles: The Ledger of Trust
+
+Every interaction in ResolvePay Rescue is anchored by strict operational invariants:
+
+1. **Replacement Before Refund**: Policy proposals proactively offer product exchanges, replacement shipments, or store credit before resorting to punitive cash refunds.
+2. **Physical Inspection Gates**: High-value returns require verifiable tracking milestones and explicit warehouse condition checks before remedy escrow funds unlock.
+3. **Double-Entry Subledger Reconciliation**: Every financial mutation generates balanced debit and credit entries with cryptographic idempotency keys, eliminating reconciliation drift.
+4. **Deterministic Invariant Enforcement**: State transitions are strictly verified against merchant policy thresholds, evidence completeness scores, and dispute timelines.
+
+---
+
+## Quickstart: Installing the SDK
+
+Choose your preferred programming language to integrate ResolvePay Rescue:
+
+### TypeScript / Node.js
+
+```bash
+# In your project root
+npm install ./apimatic/sdks/typescript
+```
+
+```typescript
+import { ResolvePayRescueApiClient } from "resolve-pay-rescue-api";
+
+const client = new ResolvePayRescueApiClient({
+  bearer: process.env.RESOLVEPAY_API_TOKEN,
+});
+
+// Fetch active dispute cases
+const cases = await client.cases.listCases();
+console.log(`Open cases: ${cases.length}`);
+```
+
+### Python
+
+```bash
+# In your virtual environment
+pip install ./apimatic/sdks/python
+```
+
+```python
+from resolvepay_rescue_api import ResolvePayRescueApiClient
+
+client = ResolvePayRescueApiClient(
+    bearer="YOUR_API_TOKEN"
+)
+
+# Fetch merchant dispute policies
+policies = client.policies.getMerchantPolicies()
+print(f"Active policy tier: {policies.active_version}")
+```
+
+### C# / .NET
+
+```csharp
+using ResolvePayRescueApi;
+
+var client = new ResolvePayRescueApiClient(
+    bearer: Environment.GetEnvironmentVariable("RESOLVEPAY_API_TOKEN")
+);
+
+var recoveryStats = await client.Merchant.GetMerchantRecoveryMetricsAsync();
+Console.WriteLine($"Net Salvaged Volume: ${recoveryStats.SalvagedVolumeUsd}");
+```
+
+---
+
+## Core Dispute & Remedy Lifecycle
+
+```
+[Customer Issue] 
+       ↓
+[Evidence Upload Intent & Completeness Check]
+       ↓
+[Deterministic Remedy Plan Generated]
+       ↓
+[Merchant / Customer Plan Acceptance]
+       ↓
+[Physical Return & Warehouse Inspection Gate]
+       ↓
+[Double-Entry Subledger Ledgering & Resolution Receipt]
+```
+
+Explore the [Interactive API Reference](/api) to review every request/response model, authentication requirement, and webhook specification.

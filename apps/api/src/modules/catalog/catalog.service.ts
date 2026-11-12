@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { demoEnabled } from '../auth/auth.security.js';
 import {
   getDb,
   tenants,
@@ -160,6 +161,7 @@ export class CatalogService {
 
     // Instant frictionless demo purchase option
     if (dto.instantDemo) {
+      if (!demoEnabled()) throw new BadRequestException('Demo purchases are disabled. Please use PayPal checkout.');
       const demoCaptureId = `PAYPAL-CAP-DEMO-${Date.now().toString().slice(-6)}`;
       const [order] = await db
         .insert(orders)
@@ -316,6 +318,9 @@ export class CatalogService {
 
     if (!order) throw new NotFoundException(`Order not found: ${orderId}`);
 
+    if (!dto.paypalOrderId || dto.paypalOrderId !== order.paypalOrderId) {
+      throw new BadRequestException('The payment does not match this order. Return to checkout and try again.');
+    }
     if (order.status === 'PAID') {
       return {
         orderId: order.id,

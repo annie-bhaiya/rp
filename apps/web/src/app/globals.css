@@ -1,3 +1,8 @@
+@import "@bryntum/core-enterprise/fontawesome/css/fontawesome.css";
+@import "@bryntum/core-enterprise/fontawesome/css/solid.css";
+@import "@bryntum/gantt-enterprise/gantt.css";
+@import "@bryntum/gantt-enterprise/svalbard.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -25,3 +30,14 @@ body {
   font-feature-settings: "tnum" on, "zero" on;
 }
 
+
+::selection { background: #dbeafe; color: #1e3a8a; }
+input, textarea { caret-color: #1e40af; }
+a { text-underline-offset: 3px; }
+button:disabled { cursor: not-allowed; }
+@media (max-width: 640px) {
+  input, textarea, select { font-size: 16px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

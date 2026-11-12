@@ -1,23 +1,30 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../components/auth-provider';
 import Link from 'next/link';
 import { ShoppingBag, ArrowRight, ShieldAlert, CheckCircle2, AlertCircle, Zap } from 'lucide-react';
 import { fetchJson } from '../lib/api';
 
 export default function StorefrontPage() {
+  const { demo } = useAuth();
+  const cache = useQueryClient();
+  const checkoutForm = useRef<HTMLFormElement>(null);
+  const [customerName, setCustomerName] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [processingVariantId, setProcessingVariantId] = useState<string | null>(null);
   const [processingType, setProcessingType] = useState<'paypal' | 'demo' | null>(null);
   const [orderResult, setOrderResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: catalogError, refetch } = useQuery({
     queryKey: ['catalog'],
     queryFn: () => fetchJson<any>('/api/v1/catalog?tenantSlug=default-merchant'),
   });
 
   const handlePayPalCheckout = async (variantId: string) => {
+    if (!checkoutForm.current?.reportValidity()) return;
     setProcessingVariantId(variantId);
     setProcessingType('paypal');
     setError(null);
@@ -26,8 +33,8 @@ export default function StorefrontPage() {
         method: 'POST',
         body: JSON.stringify({
           tenantSlug: 'default-merchant',
-          customerEmail: 'alex.customer@example.com',
-          customerName: 'Alex Johnson',
+          customerEmail: customerEmail.trim(),
+          customerName: customerName.trim(),
           items: [{ variantId, quantity: 1 }],
         }),
       });
@@ -60,6 +67,9 @@ export default function StorefrontPage() {
         }),
       });
 
+      const auth = await fetchJson<any>('/api/v1/auth/login-dev', { method: 'POST', body: JSON.stringify({ persona: 'CUSTOMER', orderId: createRes.orderId, tenantSlug: 'default-merchant' }) });
+      cache.clear();
+      cache.setQueryData(['auth-session'], auth.session);
       setOrderResult({
         orderId: createRes.orderId,
         orderReference: createRes.orderReference,
@@ -84,17 +94,17 @@ export default function StorefrontPage() {
               PeakGear Outfitter Storefront
             </h1>
             <p className="mt-2 text-slate-600 text-sm leading-relaxed">
-              Explore technical mountaineering gear backed by the <strong>ResolvePay Rescue</strong> guarantee. If anything arrives damaged, missing, or requires an exchange, our inspectable remedy engine prepares exact policy-grounded plans with mathematical ledger certainty.
+              Gear for your next adventure, with clear support if something goes wrong. Report a problem, compare the options covered by store policy, and track your resolution in one place.
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
             <Link
-              href="/portal/orders/70000000-0000-0000-0000-000000000001"
+              href="/portal"
               className="inline-flex items-center justify-center px-4 py-2.5 rounded-md text-sm font-semibold text-white bg-blue-800 hover:bg-blue-700 shadow-sm transition"
             >
               <ShieldAlert className="w-4 h-4 mr-2" />
-              Test Pre-Seeded Order (ORD-2026-9041)
+              Get help with an order
             </Link>
 
             <Link
@@ -136,6 +146,15 @@ export default function StorefrontPage() {
       )}
 
       {/* Products Catalog Grid */}
+      <form ref={checkoutForm} onSubmit={e => e.preventDefault()} className="border-t border-slate-200 pt-6">
+        <h2 className="text-lg font-semibold">Your checkout details</h2>
+        <p className="mt-1 mb-4 text-sm text-slate-600">Use your own email so you can securely access your order after payment. Demo purchases use sample details.</p>
+        <div className="grid sm:grid-cols-2 gap-4 max-w-2xl">
+          <div><label htmlFor="checkout-name" className="block text-sm font-medium mb-2">Name</label><input id="checkout-name" autoComplete="name" required maxLength={100} value={customerName} onChange={e => setCustomerName(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2.5" /></div>
+          <div><label htmlFor="checkout-email" className="block text-sm font-medium mb-2">Email</label><input id="checkout-email" type="email" autoComplete="email" required maxLength={255} value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2.5" /></div>
+        </div>
+      </form>
+      {catalogError && <div role="alert" className="text-red-800"><p>{catalogError.message}</p><button onClick={() => refetch()} className="mt-2 underline">Try loading the catalog again</button></div>}
       <div>
         <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center">
           <ShoppingBag className="w-5 h-5 mr-2 text-slate-700" />
@@ -199,14 +218,14 @@ export default function StorefrontPage() {
                           {isBuying && processingType === 'paypal' ? 'Redirecting...' : 'Buy with PayPal'}
                         </button>
 
-                        <button
+                          {demo && <button
                           onClick={() => variant && handleInstantDemoBuy(variant.id)}
                           disabled={isBuying}
                           className="inline-flex items-center justify-center px-3 py-2 rounded-md text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 disabled:opacity-50 transition"
                         >
                           <Zap className="w-3.5 h-3.5 mr-1 text-amber-600" />
                           {isBuying && processingType === 'demo' ? 'Creating...' : '1-Click Demo Buy'}
-                        </button>
+                          </button>}
                       </div>
                     </div>
                   </div>

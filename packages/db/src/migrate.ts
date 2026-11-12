@@ -358,6 +358,15 @@ export async function runMigrations(): Promise<void> {
       trace_id VARCHAR(128) NOT NULL,
       occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
+    `CREATE TABLE IF NOT EXISTS merchant_login_tokens (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      token_hash VARCHAR(128) NOT NULL UNIQUE,
+      tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      consumed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
   ];
 
   for (const stmt of statements) {

@@ -15,13 +15,13 @@ TypeScript monorepo with pnpm workspaces; Next.js 15 (App Router) frontend with 
 3. **Support Agents / Approvers / Inspectors**: Ops staff evaluating evidence, authorizing documented financial exceptions, and recording physical return inspections.
 
 ## Product Purpose
-ResolvePay Rescue turns failed e-commerce purchases into verified, trustworthy remedies. It ingests complaints across Web, Email, and WhatsApp, deterministically models policy-grounded remedy options (full/partial refunds, replacements, cheaper/more expensive exchanges), obtains cryptographic/hash-bound customer and merchant acceptance, executes payment and logistics sagas via PayPal and fulfillment systems, and reconciles every dollar in an append-only double-entry subledger.
+ResolvePay Rescue turns failed e-commerce purchases into verified, trustworthy remedies. It ingests complaints across Web, Email, deterministically models policy-grounded remedy options (full/partial refunds, replacements, cheaper/more expensive exchanges), obtains cryptographic/hash-bound customer and merchant acceptance, executes payment and logistics sagas via PayPal and fulfillment systems, and reconciles every dollar in an append-only double-entry subledger.
 
 ## Positioning
 Unlike conversational AI bots that hallucinate promises or make unverified refunds, and unlike rigid one-size-fits-all return portals, ResolvePay pairs advisory AI issue extraction with deterministic, inspectable resolution plans, mathematical double-entry accounting guarantees, strict state-machine recovery sagas, and multi-channel synchronization.
 
 ## Operating Context
-Operates in high-stakes financial e-commerce environments. Works across desktop and mobile browsers, transactional email threads, and WhatsApp messaging. Connects to PayPal sandbox/live REST APIs, managed PostgreSQL on Azure, private Azure Blob storage for evidence, and Google Gemini for structured reasoning.
+Operates in high-stakes financial e-commerce environments. Works across desktop and mobile browsers, transactional email threads messaging. Connects to PayPal sandbox/live REST APIs, managed PostgreSQL on Azure, private Azure Blob storage for evidence, and Google Gemini for structured reasoning.
 
 ## Capabilities and Constraints
 - Immutable versioned policy clauses and deterministic option enumeration.
@@ -29,7 +29,7 @@ Operates in high-stakes financial e-commerce environments. Works across desktop 
 - Hash-bound customer acceptance and merchant authorization before any financial side-effect.
 - Double-entry subledger invariants (balanced debits/credits, no float precision errors).
 - Idempotent saga execution with durable step recovery for PayPal captures and refunds.
-- Multi-channel timeline linking Web, Email, and WhatsApp.
+- Multi-channel timeline linking Web, Email.
 - Simulated and real fulfillment/inspection workflows.
 
 ## Brand Commitments

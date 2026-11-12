@@ -1,0 +1,52 @@
+// Isolated regression journey: never uses configured cloud databases or payment credentials.
+process.env.DATABASE_URL = 'memory://';
+process.env.GEMINI_API_KEY = '';
+process.env.PAYPAL_CLIENT_ID = '';
+process.env.PAYPAL_CLIENT_SECRET = '';
+const assert = require('node:assert/strict');
+const { randomUUID } = require('node:crypto');
+require('../apps/api/node_modules/reflect-metadata');
+const dbModule = require('../packages/db/dist/index.js');
+const { CasesService } = require('../apps/api/dist/modules/cases/cases.service.js');
+const { PlansService } = require('../apps/api/dist/modules/plans/plans.service.js');
+
+async function main() {
+  await dbModule.runSeed();
+  const db = await dbModule.getDb();
+  const tenantId = '00000000-0000-0000-0000-000000000001';
+  const orderId = '70000000-0000-0000-0000-000000000001';
+  const customer = { tenantId, orderId, actorType: 'CUSTOMER', actorId: '20000000-0000-0000-0000-000000000001', sessionId: randomUUID(), tenantSlug: 'default-merchant' };
+  const merchant = { ...customer, actorType: 'MERCHANT', role: 'MERCHANT_OWNER', actorId: '10000000-0000-0000-0000-000000000001' };
+  const cases = new CasesService();
+  const plans = new PlansService();
+  const opened = await cases.createCase({ orderId, initialMessage: 'My backpack zipper is broken. I prefer a replacement.', channel: 'WEB' }, customer);
+  const offered = await plans.generateProposals(opened.id, customer);
+  assert.ok(offered.length > 0);
+  const replay = await plans.generateProposals(opened.id, customer);
+  assert.deepEqual(replay.map(p => p.id).sort(), offered.map(p => p.id).sort(), 'Proposal retry must reuse current options');
+  const details = await cases.getCaseById(opened.id, tenantId);
+  assert.match(details.case.constraints.aiBrief.summary, /damaged/);
+  assert.equal(details.case.constraints.aiBrief.extractionSource, 'DETERMINISTIC');
+  assert.equal(details.case.constraints.preference, 'replacement');
+  assert.equal(details.case.constraints.aiBrief.recommendedOptionType, 'REPLACEMENT_SAME');
+  assert.ok(details.plans[0].refund, 'Customer API must expose financial terms at the displayed location');
+  const refund = offered.find(p => p.type.startsWith('REFUND'));
+  const consent = { planId: refund.id, expectedHash: refund.canonicalHash, expectedVersion: refund.version };
+  await assert.rejects(() => plans.acceptPlan({ ...consent, expectedHash: 'invalid' }, customer));
+  await assert.rejects(() => plans.acceptPlan(consent, { ...customer, tenantId: '00000000-0000-0000-0000-000000000002' }));
+  await plans.acceptPlan(consent, customer);
+  const blocked = await plans.approveAndExecute({ ...consent, decision: 'APPROVED' }, merchant);
+  assert.equal(blocked.state, 'AWAITING_RETURN');
+  await assert.rejects(() => plans.executePlan(refund.id, merchant), /Inspection gate/);
+  await db.update(dbModule.returns).set({ inspectionResult: 'PASSED', status: 'INSPECTION_PASSED' }).where(dbModule.eq(dbModule.returns.caseId, opened.id));
+  const completed = await plans.executePlan(refund.id, merchant);
+  assert.equal(completed.state, 'COMPLETED');
+  const repeated = await plans.executePlan(refund.id, merchant);
+  assert.equal(repeated.alreadyCompleted, true);
+  const refunds = await db.select().from(dbModule.refunds);
+  assert.equal(refunds.length, 1, 'Repeated execution must not create another refund');
+  const resolved = await cases.getCaseById(opened.id, tenantId);
+  assert.equal(resolved.case.state, 'RESOLVED');
+  console.log('PASS: complaint → AI fallback brief → grounded terms → consent → return gate → approval → simulated refund → replay protection');
+}
+main().then(() => process.exit(0)).catch(error => { console.error(error); process.exit(1); });

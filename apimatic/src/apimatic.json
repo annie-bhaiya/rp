@@ -1,0 +1,48 @@
+{
+  "$schema": "https://cdn.jsdelivr.net/npm/@apimatic/cli@2/apimatic.schema.json",
+  "schemaVersion": 1,
+  "portal": {
+    "site": {
+      "name": "ResolvePay Rescue Developer Hub",
+      "url": "https://resolvepay-web.politetree-c3c2d975.centralindia.azurecontainerapps.io",
+      "description": "The Ledger of Trust: Autonomous Dispute Resolution, Structured Remedy Workflows, and Subledger Accounting for Modern Commerce."
+    },
+    "brand": {
+      "logo": {
+        "light": "static/images/placeholder-logo.png",
+        "dark": "static/images/placeholder-logo-dark.png"
+      },
+      "favicon": "static/images/favicon.ico",
+      "colors": {
+        "primary": "#1E40AF"
+      },
+      "colorMode": "both"
+    },
+    "navigation": {
+      "links": [
+        {
+          "label": "Web Console",
+          "url": "https://resolvepay-web.politetree-c3c2d975.centralindia.azurecontainerapps.io"
+        },
+        {
+          "label": "API Health",
+          "url": "https://resolvepay-api.politetree-c3c2d975.centralindia.azurecontainerapps.io/api/v1/health"
+        }
+      ]
+    },
+    "ai": {
+      "pageActions": true
+    }
+  },
+  "languages": {
+    "csharp": {},
+    "typescript": {},
+    "python": {}
+  },
+  "plugin": {
+    "pluginId": "resolvepay-rescue",
+    "pluginName": "ResolvePay Rescue Agent Context Plugin",
+    "pluginVersion": "1.0.0",
+    "license": "MIT"
+  }
+}

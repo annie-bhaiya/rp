@@ -37,7 +37,22 @@ async function bootstrap() {
     .setTitle('ResolvePay Rescue API')
     .setDescription('Autonomous commerce dispute, policy planning, and remedy resolution engine')
     .setVersion('1.0')
-    .addBearerAuth()
+    .addServer('https://resolvepay-api.politetree-c3c2d975.centralindia.azurecontainerapps.io', 'Production & Demo API Gateway')
+    .addServer('http://localhost:3001', 'Local Development Server')
+    .addBearerAuth({
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT',
+      description: 'Session bearer token or authorization credential',
+    })
+    .addTag('Auth', 'Session management, persona authentication, and magic link access')
+    .addTag('Catalog', 'Store catalog, product variants, and checkout order lifecycle')
+    .addTag('Cases', 'Dispute case creation, messaging timeline, evidence uploads, and completeness checking')
+    .addTag('Plans', 'AI-assisted and policy-guided remedy plan proposals, acceptance, and approval')
+    .addTag('Returns', 'Physical item return tracking and merchant inspection gating')
+    .addTag('Merchant', 'Operational recovery queue, policy publishing, analytics insights, and subledger reconciliation')
+    .addTag('Webhooks', 'PayPal Orders v2 and Resend inbound event processing')
+    .addTag('Dev', 'Development mailbox, health checks, seed fixtures, and failure injection simulator')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/v1/docs', app, document);

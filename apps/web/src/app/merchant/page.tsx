@@ -20,90 +20,79 @@ import {
   Image as ImageIcon,
   ExternalLink,
   TrendingUp,
+  Calendar,
 } from 'lucide-react';
+import { ResolutionBrief } from '../../components/resolution-brief';
+import { ResolutionReceiptView } from '../../components/resolution-receipt';
+import { EvidenceCompletenessView } from '../../components/evidence-completeness';
+import { RecoverySimulator } from '../../components/recovery-simulator';
+import { DisputeGantt } from '../../components/dispute-gantt-wrapper';
 import { fetchJson } from '../../lib/api';
 
 export default function MerchantOperationsPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'inbox' | 'insights' | 'recovery' | 'policies'>('inbox');
+  const [activeTab, setActiveTab] = useState<'inbox' | 'insights' | 'recovery' | 'policies' | 'gantt'>('inbox');
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [inspectionResult, setInspectionResult] = useState<'PASSED' | 'FAILED'>('PASSED');
   const [inspectionNotes, setInspectionNotes] = useState('Physical item inspected: defective split zipper confirmed. Eligible for warranty remedy.');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [sessionReady, setSessionReady] = useState(false);
-
-  useEffect(() => {
-    async function ensureMerchantSession() {
-      try {
-        const session = await fetchJson<any>('/api/v1/auth/session');
-        if (session && session.actorType === 'MERCHANT') {
-          setSessionReady(true);
-          return;
-        }
-      } catch {
-        // no session
-      }
-
-      try {
-        await fetchJson<any>('/api/v1/auth/login-dev', {
-          method: 'POST',
-          body: JSON.stringify({ persona: 'OWNER', tenantSlug: 'default-merchant' }),
-        });
-      } catch (err) {
-        console.warn('Could not auto-login merchant owner:', err);
-      } finally {
-        setSessionReady(true);
-      }
-    }
-
-    ensureMerchantSession();
-  }, []);
+  const sessionReady = true;
 
   // 1. Fetch Cases
-  const { data: casesList, refetch: refetchCases } = useQuery({
+  const { data: casesList, refetch: refetchCases, error: casesError, isPending: casesLoading } = useQuery({
     queryKey: ['merchant-cases'],
     queryFn: () => fetchJson<any[]>('/api/v1/cases'),
     enabled: sessionReady,
+    refetchInterval: 15_000,
   });
 
   // 2. Fetch Selected Case Details
-  const { data: caseDetails, refetch: refetchDetails } = useQuery({
+  const { data: caseDetails, refetch: refetchDetails, error: detailsError, isFetching: detailsLoading } = useQuery({
     queryKey: ['merchant-case-details', selectedCaseId],
     queryFn: () => fetchJson<any>(`/api/v1/cases/${selectedCaseId}`),
     enabled: sessionReady && !!selectedCaseId,
+    refetchInterval: 10_000,
   });
 
   // 3. Fetch Recovery Queue
-  const { data: recoveryQueue, refetch: refetchRecovery } = useQuery({
+  const { data: recoveryQueue, refetch: refetchRecovery, error: recoveryError, isFetching: recoveryLoading } = useQuery({
     queryKey: ['recovery-queue'],
     queryFn: () => fetchJson<any[]>('/api/v1/merchant/recovery'),
     enabled: sessionReady && activeTab === 'recovery',
   });
 
   // 4. Fetch Policies
-  const { data: policies, refetch: refetchPolicies } = useQuery({
+  const { data: policies, refetch: refetchPolicies, error: policiesError, isFetching: policiesLoading } = useQuery({
     queryKey: ['merchant-policies'],
     queryFn: () => fetchJson<any[]>('/api/v1/merchant/policies'),
     enabled: sessionReady && activeTab === 'policies',
   });
 
   // 5. Fetch Insights
-  const { data: insights, refetch: refetchInsights } = useQuery({
+  const { data: insights, refetch: refetchInsights, error: insightsError, isFetching: insightsLoading } = useQuery({
     queryKey: ['merchant-insights'],
     queryFn: () => fetchJson<any>('/api/v1/merchant/insights'),
     enabled: sessionReady && activeTab === 'insights',
   });
 
+  // 6. Fetch Resolution Receipt for Selected Case (Proposal 1)
+  const { data: receipt, isLoading: receiptLoading, refetch: refetchReceipt } = useQuery({
+    queryKey: ['merchant-receipt', selectedCaseId],
+    queryFn: () => fetchJson<any>(`/api/v1/cases/${selectedCaseId}/receipt`),
+    enabled: sessionReady && !!selectedCaseId,
+    refetchInterval: 10_000,
+  });
+
   // Merchant Approve Mutation
   const approveMutation = useMutation({
     mutationFn: ({ planId, expectedHash }: { planId: string; expectedHash: string }) =>
-      fetchJson<any>(`/api/v1/plans/${planId}/approve`, {
+      fetchJson<any>(`/api/v1/plans/${planId}/approve-and-execute`, {
         method: 'POST',
         body: JSON.stringify({ expectedHash }),
       }),
-    onSuccess: () => {
-      setActionMessage('Plan authorized by merchant approver.');
+    onSuccess: (data) => {
+      setActionMessage(data.state === 'COMPLETED' ? 'Approved and resolved. Payment and fulfillment results are recorded.' : data.message || 'Approved. Review the next required step.');
       refetchDetails();
       refetchCases();
     },
@@ -158,13 +147,13 @@ export default function MerchantOperationsPage() {
       {/* Top Header & Tab Navigation */}
       <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Merchant Operations Hub</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Merchant workspace</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Store Owner & Approver Controls: Financial Authorizations, Physical Inspection, & Saga Recovery
+            Review customer issues, approve resolutions, and track next steps.
           </p>
         </div>
 
-        <div className="inline-flex rounded-md shadow-sm">
+        <div className="inline-flex max-w-full overflow-x-auto rounded-md shadow-sm">
           <button
             onClick={() => setActiveTab('inbox')}
             className={`px-3 py-1.5 text-xs font-semibold rounded-l-md border border-slate-300 flex items-center ${
@@ -173,6 +162,15 @@ export default function MerchantOperationsPage() {
           >
             <Inbox className="w-3.5 h-3.5 mr-1.5" />
             Case Inbox
+          </button>
+          <button
+            onClick={() => setActiveTab('gantt')}
+            className={`px-3 py-1.5 text-xs font-semibold border-t border-b border-r border-slate-300 flex items-center ${
+              activeTab === 'gantt' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5 mr-1.5" />
+            Dispute Schedule (Gantt)
           </button>
           <button
             onClick={() => setActiveTab('insights')}
@@ -207,17 +205,19 @@ export default function MerchantOperationsPage() {
       {actionMessage && (
         <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-md text-xs font-semibold text-emerald-900 flex items-center justify-between">
           <span>{actionMessage}</span>
-          <button onClick={() => setActionMessage(null)} className="text-emerald-700 hover:text-emerald-950 font-bold ml-4">✕</button>
+          <button aria-label="Dismiss confirmation" onClick={() => setActionMessage(null)} className="text-emerald-700 hover:text-emerald-950 font-bold ml-4">✕</button>
         </div>
       )}
 
       {actionError && (
         <div className="p-4 bg-red-50 border border-red-300 rounded-md text-xs font-semibold text-red-900 flex items-center justify-between">
           <span>{actionError}</span>
-          <button onClick={() => setActionError(null)} className="text-red-700 hover:text-red-950 font-bold ml-4">✕</button>
+          <button aria-label="Dismiss error" onClick={() => setActionError(null)} className="text-red-700 hover:text-red-950 font-bold ml-4">✕</button>
         </div>
       )}
 
+      {(casesLoading || (selectedCaseId && detailsLoading) || (activeTab === 'recovery' && recoveryLoading) || (activeTab === 'policies' && policiesLoading) || (activeTab === 'insights' && insightsLoading)) && <p role="status" className="text-sm text-slate-600">Loading workspace data…</p>}
+      {(casesError || detailsError || (activeTab === 'recovery' && recoveryError) || (activeTab === 'policies' && policiesError) || (activeTab === 'insights' && insightsError)) && <div role="alert" className="p-4 text-sm bg-red-50 border border-red-200 rounded-md text-red-800"><p>We could not load this view. Your saved changes are safe.</p><button className="underline mt-2" onClick={() => queryClient.invalidateQueries()}>Try again</button></div>}
       {/* Tab 1: Case Inbox */}
       {activeTab === 'inbox' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -232,10 +232,13 @@ export default function MerchantOperationsPage() {
 
             <div className="divide-y divide-slate-100">
               {casesList?.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">No cases found.</div>
+                <div className="py-8 text-center text-xs text-slate-400">All caught up. New customer requests will appear here.</div>
               ) : (
                 casesList?.map((c: any) => (
                   <div
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedCaseId(c.id); } }}
                     key={c.id}
                     onClick={() => {
                       setSelectedCaseId(c.id);
@@ -271,6 +274,32 @@ export default function MerchantOperationsPage() {
             ) : (
               caseDetails && (
                 <div className="space-y-6">
+                  <ResolutionBrief brief={caseDetails.case.constraints?.aiBrief} />
+
+                  {/* Proposal 3: Evidence Completeness Assistant */}
+                  <EvidenceCompletenessView
+                    caseId={caseDetails.case.id}
+                    hasAcceptedPlan={caseDetails.plans?.some((p: any) => p.customerAccepted)}
+                    onAnswersSaved={() => {
+                      refetchDetails();
+                      refetchReceipt();
+                      refetchCases();
+                    }}
+                  />
+
+                  {/* Proposal 2: Visible Pending Recovery State if In-Flight Timeout */}
+                  {caseDetails.resolution?.state === 'UNKNOWN_RECONCILING' && (
+                    <RecoverySimulator
+                      caseId={caseDetails.case.id}
+                      planId={caseDetails.plans?.find((p: any) => p.customerAccepted)?.id}
+                      stepState="UNKNOWN"
+                      onReconciled={() => {
+                        refetchDetails();
+                        refetchReceipt();
+                        refetchCases();
+                      }}
+                    />
+                  )}
                   {/* Case Context Header */}
                   <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
@@ -409,7 +438,7 @@ export default function MerchantOperationsPage() {
                     </h3>
 
                     {caseDetails.plans?.map((plan: any) => {
-                      const canApprove = !plan.merchantApproved;
+                      const canApprove = plan.customerAccepted && !plan.merchantApproved;
                       const canExecute = plan.customerAccepted && plan.merchantApproved && plan.state !== 'COMPLETED';
 
                       return (
@@ -434,7 +463,7 @@ export default function MerchantOperationsPage() {
                                 disabled={approveMutation.isPending}
                                 className="px-3.5 py-1.5 rounded-md text-xs font-semibold text-white bg-emerald-800 hover:bg-emerald-700 shadow-sm transition"
                               >
-                                Authorize Financial Plan
+                                Approve & resolve
                               </button>
                             )}
 
@@ -459,10 +488,31 @@ export default function MerchantOperationsPage() {
                       );
                     })}
                   </div>
+
+                  {/* Proposal 1: Audited Resolution Receipt & Financial Subledger */}
+                  <ResolutionReceiptView
+                    receipt={receipt}
+                    isLoading={receiptLoading}
+                    onRefresh={refetchReceipt}
+                  />
                 </div>
               )
             )}
           </div>
+        </div>
+      )}
+
+      {/* Tab: Dispute Operations Gantt Schedule (Bryntum Gantt Enterprise) */}
+      {activeTab === 'gantt' && (
+        <div className="space-y-6">
+          <DisputeGantt
+            cases={casesList}
+            selectedCaseId={selectedCaseId}
+            onSelectCase={(id) => {
+              setSelectedCaseId(id);
+              setActiveTab('inbox');
+            }}
+          />
         </div>
       )}
 
@@ -641,7 +691,15 @@ export default function MerchantOperationsPage() {
 
       {/* Tab 3: Recovery Queue */}
       {activeTab === 'recovery' && (
-        <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-4">
+        <div className="space-y-6">
+          <RecoverySimulator
+            onReconciled={() => {
+              refetchRecovery();
+              refetchCases();
+            }}
+          />
+
+          <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-bold text-slate-900">Operator Recovery Queue</h2>
@@ -680,6 +738,7 @@ export default function MerchantOperationsPage() {
             )}
           </div>
         </div>
+      </div>
       )}
 
       {/* Tab 3: Policy Manager */}

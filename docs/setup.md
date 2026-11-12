@@ -8,7 +8,6 @@ ResolvePay is designed to run locally out-of-the-box using built-in fallbacks:
 - **AI Advisory**: Uses `DeterministicAiProvider` when `GEMINI_API_KEY` is not provided.
 - **Payments**: Uses `MockPayPalAdapter` when `PAYPAL_CLIENT_ID` is empty.
 - **Email**: Uses `DevMailboxClient` (logs all sent emails and access links to `/mailbox`) when `RESEND_API_KEY` is empty.
-- **WhatsApp**: Uses `MockWhatsAppAdapter` for local simulated chats.
 
 ```bash
 # 1. Install dependencies
@@ -68,20 +67,5 @@ pnpm dev:web
    RESEND_API_KEY="re_..."
    EMAIL_FROM=resolvepay@divyansh.live
    EMAIL_DOMAIN=divyansh.live
-   ```
-
-### 4. Meta WhatsApp Cloud API
-1. Create a Meta Developer App at [developers.facebook.com](https://developers.facebook.com).
-2. Set up WhatsApp product with test phone number resources.
-3. Add your personal WhatsApp phone number to the **Allowed Recipients** list.
-4. Configure Webhook callback URL: `https://<your-domain>/api/v1/webhooks/whatsapp/default` with verify token.
-5. Configure in `.env`:
-   ```env
-   WHATSAPP_MODE=test
-   META_APP_SECRET="<app-secret>"
-   META_ACCESS_TOKEN="<token>"
-   META_PHONE_NUMBER_ID="<phone-id>"
-   META_WEBHOOK_VERIFY_TOKEN="<verify-token>"
-   PAID_MESSAGING_ENABLED=false
    ```
 

@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { CasesService } from './cases.service.js';
-import { AuthenticatedRequest, SessionAuthGuard } from '../../common/guards.js';
+import { AuthenticatedRequest, SessionAuthGuard, CaseAccessGuard } from '../../common/guards.js';
 import {
   CreateCaseDtoSchema,
   AddCaseMessageDtoSchema,
@@ -19,7 +19,7 @@ import {
 } from '@resolvepay/contracts';
 
 @Controller('cases')
-@UseGuards(SessionAuthGuard)
+@UseGuards(SessionAuthGuard, CaseAccessGuard)
 export class CasesController {
   constructor(private casesService: CasesService) {}
 
@@ -31,7 +31,8 @@ export class CasesController {
 
   @Get()
   async listCases(@Req() req: AuthenticatedRequest) {
-    return await this.casesService.listCases(req.tenantId!);
+    const records = await this.casesService.listCases(req.tenantId!);
+    return req.sessionInfo!.actorType === 'CUSTOMER' ? records.filter(record => record.orderId === req.sessionInfo!.orderId) : records;
   }
 
   @Get(':id')
@@ -103,8 +104,22 @@ export class CasesController {
   ) {
     const { buffer, mediaType } = await this.casesService.getEvidenceFile(caseId, evidenceId, req.tenantId!);
     res.setHeader('Content-Type', mediaType);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'private, no-store');
     res.end(buffer);
+  }
+
+  @Get(':id/completeness')
+  async getCompleteness(@Param('id') caseId: string, @Req() req: AuthenticatedRequest) {
+    return await this.casesService.assessCompleteness(caseId, req.tenantId!);
+  }
+
+  @Post(':id/completeness/answers')
+  async saveCompletenessAnswers(
+    @Param('id') caseId: string,
+    @Body() body: { answers: Record<string, string> },
+    @Req() req: AuthenticatedRequest
+  ) {
+    return await this.casesService.saveCompletenessAnswers(caseId, body.answers || {}, req.sessionInfo!);
   }
 }
 

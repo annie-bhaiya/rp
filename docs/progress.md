@@ -6,7 +6,7 @@
 - [x] **P2: Checkout & Catalog** — Built-in storefront, cart calculation, PayPal sandbox integration & local mock adapter.
 - [x] **P3: AI Planning Engine** — Gemini structured output, policy selection, remedy option generation, hash-bound proposal persistence.
 - [x] **P4: Execution & Saga Recovery** — Customer acceptance, merchant approval, inspection gating, refund/replacement saga, background worker jobs.
-- [x] **P5: Multi-Channel Timeline** — Web portal, Resend Email webhook intake & Dev mailbox, Meta WhatsApp Cloud API intake.
+- [x] **P5: Multi-Channel Timeline** — Web portal, Resend Email webhook intake & Dev mailbox Cloud API intake.
 - [x] **P6: UI Polish, Evaluation Fixtures & Verification** — Accessible UI (WCAG 2.2 AA), 20 labeled AI evaluation test cases (all passing), Azure Bicep deployment scripts, documentation.
 
 ## Test Verification

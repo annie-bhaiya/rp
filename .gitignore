@@ -13,3 +13,7 @@ coverage
 *.tsbuildinfo
 supabase/.temp/
 
+
+.next-verify/
+
+.next-workflow-*/

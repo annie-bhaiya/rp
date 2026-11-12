@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const InboundWebhookEventSchema = z.object({
   id: z.string().uuid(),
-  provider: z.enum(['PAYPAL', 'RESEND', 'META_WHATSAPP']),
+  provider: z.enum(['PAYPAL', 'RESEND']),
   connectionId: z.string().optional(),
   eventId: z.string(),
   rawPayload: z.string(),
@@ -15,7 +15,7 @@ export const NotificationEventSchema = z.object({
   id: z.string().uuid(),
   tenantId: z.string().uuid(),
   caseId: z.string().uuid(),
-  channel: z.enum(['WEB', 'EMAIL', 'WHATSAPP']),
+  channel: z.enum(['WEB', 'EMAIL']),
   recipient: z.string(),
   templateKey: z.string(),
   subject: z.string().optional(),

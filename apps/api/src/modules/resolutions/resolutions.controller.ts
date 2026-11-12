@@ -42,5 +42,10 @@ export class ResolutionsController {
   async reconcileOperation(@Param('id') stepId: string, @Req() req: AuthenticatedRequest) {
     return await this.resolutionsService.reconcileOperation(stepId, req.sessionInfo!);
   }
+
+  @Get('cases/:caseId/receipt')
+  async getReceipt(@Param('caseId') caseId: string, @Req() req: AuthenticatedRequest) {
+    return await this.resolutionsService.getResolutionReceipt(caseId, req.tenantId!);
+  }
 }
 

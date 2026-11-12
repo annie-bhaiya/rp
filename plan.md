@@ -30,7 +30,7 @@ The differentiator is an inspectable resolution plan plus reliable execution whe
 - Customer budget, deadline, and preference constraints.
 - Policy-grounded plans with citations, versions, approvals, and explicit exceptions.
 - Return authorization, inspection, inventory reservation, replacement dispatch, and delivery tracking.
-- Unified web, email, and WhatsApp case timeline.
+- Unified web, email and Email case timeline.
 - Payment reconciliation, duplicate prevention, resumable workflows, and operator recovery.
 - Photo-assisted evidence, recurring-issue insights, Shopify integration, and automatic limits in later phases.
 - Multi-tenant foundations with one merchant in the initial demo.
@@ -55,8 +55,7 @@ This is not escrow, a wallet, a payment processor, a fraud-verdict engine, a dis
 | Demo | Synthetic customers, USD payments, English UI |
 | Merchant identity | Google and Microsoft sign-in |
 | Customer identity | Secure email links granting access to their orders |
-| Channels | Web, email, and WhatsApp in the first release |
-| WhatsApp | Direct Meta Cloud API with test resources first |
+| Channels | Web, email and Email in the first release |
 | Email | Sender `resolvepay@divyansh.live`; verify domain `divyansh.live` |
 | Messaging budget | Free/test allowances only; paid messaging needs owner's decision |
 | Returns | Simulated shipping; merchant-recorded inspection; policy gates before refund/dispatch |
@@ -73,7 +72,7 @@ Pin compatible stable versions and commit the lockfile during bootstrap. Choose 
 
 ### R0 — Hackathon core
 
-Tenant-safe authentication; synthetic catalog/orders; sandbox checkout/capture; complaint intake; policy-grounded remedy proposals; customer acceptance; merchant approval; return/inspection gates; refunds and same-item replacements; execution timeline; recovery; verified webhooks; real test integrations for web/email/WhatsApp; deployment/run instructions; evaluation fixtures; submission assets.
+Tenant-safe authentication; synthetic catalog/orders; sandbox checkout/capture; complaint intake; policy-grounded remedy proposals; customer acceptance; merchant approval; return/inspection gates; refunds and same-item replacements; execution timeline; recovery; verified webhooks; real test integrations for web/email; deployment/run instructions; evaluation fixtures; submission assets.
 
 Each channel supports a narrow complete journey: complaint intake, clarification, secure portal handoff, and outcome notification. Customer remedy acceptance and merchant financial approval occur in the authenticated portal, not through interpretation of chat replies.
 
@@ -101,7 +100,6 @@ flowchart LR
     M[Merchant browser] --> W
     W --> A[NestJS API]
     E[Email provider] --> H[Verified webhook ingress]
-    WA[Meta WhatsApp] --> H
     P[PayPal] --> H
     H --> A
     A --> D[(PostgreSQL)]
@@ -130,7 +128,6 @@ This diagram represents logical flow. PostgreSQL does not wake a zero-replica wo
 | Resolution | Saga and recovery | External success is verified, not assumed |
 | Payments | PayPal operations and reconciliation | Model has no direct payment tool |
 | Fulfillment | Reservations, returns, inspection, shipment | All dispatch gates enforced |
-| Channels | Email, WhatsApp, web, notifications | Verified inbound and tenant mapping |
 | Insights | Deterministic aggregates, cited summaries | No autonomous policy change |
 | Operations | Audit, failures, quotas, health | Recovery preserves financial invariants |
 
@@ -224,7 +221,6 @@ Order lookup accepts merchant slug, order reference, and email; always returns a
 
 Do not consume the token on GET because email scanners may prefetch. Use a confirmation POST. Token pages use no-store, no-referrer, no third-party scripts; scrub URLs from logs. An order ID, phone number, email From header, or PayPal return URL is not proof of order ownership.
 
-WhatsApp identity is linked through the authenticated portal. Before linking, accept only generic inquiries and offer the access flow without disclosing order details. Customer remedy acceptance occurs in the portal against a specific plan hash.
 
 ### 6.3 Tenant enforcement
 
@@ -507,14 +503,6 @@ Reply addresses contain opaque thread references, not authorization tokens. Prov
 
 R0 includes access links, clarification/status notifications, and complaint/reply intake through verified receiving setup. Record accepted/delivered/bounced/failed separately. Escape content in text/HTML templates. Set local daily/monthly caps below actual account free allowances, reserving capacity for access links. No paid overage or marketing campaigns. Local mail viewer is development-only and never public.
 
-### 14.2 WhatsApp
-
-Use Meta test phone resources and authorized test recipients. Store tokens/app secret server-side; verify webhook challenge and raw-body signature. Map configured phone-number ID to tenant. Deduplicate inbound/delivery events and expose token expiry/setup failures.
-
-Reverify current window, template, opt-in, and pricing rules in official Meta documentation/console. Official pages were rate-limited during research; this plan makes no claim that production service messages are free. Set `PAID_MESSAGING_ENABLED=false`; send only when test/free allowance is confirmed, otherwise BLOCKED with portal fallback.
-
-Accept generic initial inquiry, then require secure order linking before details. Send concise status and portal link, not full financial records. Conversational 'yes' is not financial consent. Honor opt-out. Apply evidence upload controls to media. Never resend merely to evade policy restrictions.
-
 ### 14.3 Notification reliability
 
 Outbox generates one event/channel/recipient notification key. Commit business outcome before sending. Use provider idempotency where available. For ambiguous send without provider dedupe, reconcile/manual review rather than repeated sends. Exactly-once delivery is not promised.
@@ -549,9 +537,7 @@ Base `/api/v1`; OpenAPI generated from validated schemas; frontend types generat
 | GET `/merchant/recovery` | Failed/unknown operations |
 | POST `/merchant/recovery/:id/reconcile` | Safe authoritative lookup |
 | GET `/merchant/insights` | Tenant aggregates |
-| POST `/channels/whatsapp/link` | Authenticated identity binding |
 | POST `/webhooks/paypal/:connectionKey` | Verified financial events |
-| GET/POST `/webhooks/whatsapp/:connectionKey` | Challenge and signed events |
 | POST `/webhooks/email/:connectionKey` | Signed email events |
 
 Mutation requests include `Idempotency-Key`. Store actor/tenant/route/body hash and operation. Same key/different body returns 409. Preserve financial dedupe records beyond short HTTP cache TTLs. Concurrent edits include expected version/If-Match. Cursor pagination is stable and bounded.
@@ -645,12 +631,6 @@ EMAIL_FROM=resolvepay@divyansh.live
 EMAIL_DOMAIN=divyansh.live
 RESEND_API_KEY=
 RESEND_WEBHOOK_SECRET=
-WHATSAPP_MODE=test
-META_APP_SECRET=
-META_ACCESS_TOKEN=
-META_PHONE_NUMBER_ID=
-META_WEBHOOK_VERIFY_TOKEN=
-PAID_MESSAGING_ENABLED=false
 DEMO_ALLOWED_RECIPIENTS=
 AUTO_FINANCIAL_ACTIONS_ENABLED=false
 ```
@@ -679,7 +659,7 @@ Inject failure after provider success but before local commit. Test duplicate/ou
 | A08 | Concurrent refund attempts | Reserved+settled amounts never exceed balance |
 | A09 | Tenant attack | No API/job/storage/search leakage |
 | A10 | AI injection/quota failure | No unauthorized action; manual path |
-| A11 | Web/email/WhatsApp intake | Real test inbound reaches correct timeline |
+| A11 | Web/email intake | Real test inbound reaches correct timeline |
 | A12 | Notification failure | Correct money state; delivery failure visible |
 | A13 | More expensive exchange | Explicit buyer approval; credit/payment/stock reconcile |
 | A14 | Stock failure after extra charge | Repair or approved recovery refund |
@@ -707,7 +687,7 @@ Measure extraction/citation correctness, unsupported claims, eligibility agreeme
 | P2 Checkout | Catalog/cart, real PayPal sandbox, inbox verification | Actual purchase reconciles |
 | P3 Planning | Cases, published policies, Gemini, immutable proposals | Grounded valid options and amounts |
 | P4 Execution | Approvals, inspection, saga, refund/replacement, jobs | Real refund; A02–A08; no-traffic worker |
-| P5 Channels | Domain/receiving, email, Meta test resources, bindings | Real email/WhatsApp test paths or explicit prerequisite blocker |
+| P5 Channels | Domain/receiving, email, Meta test resources, bindings | Real email test paths or explicit prerequisite blocker |
 | P6 Submission | UI/accessibility, evaluation, deploy, docs/license/video | All R0 gates and runnable submission |
 | P7 Exchanges | Alternatives, extra/cheaper payment, stale replanning | A13–A15 |
 | P8 Intelligence | Image evidence and aggregate insights | Validated evidence; truthful metrics |
@@ -774,7 +754,6 @@ Checked 2026-11-10. Reverify current contracts before implementation/live launch
 - [PostgreSQL RLS](https://www.postgresql.org/docs/current/ddl-rowsecurity.html): policies and owner bypass.
 - [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), [limits](https://ai.google.dev/gemini-api/docs/rate-limits), [structured output](https://ai.google.dev/gemini-api/docs/structured-output): eligibility/data use, account quota, schema support.
 - [Resend pricing](https://resend.com/pricing) and [webhooks](https://github.com/resend/resend-skills/blob/main/skills/resend/references/webhooks.md): verify allowance/receiving setup and signatures.
-- [Meta setup](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started) and [pricing](https://developers.facebook.com/docs/whatsapp/pricing/): official pages rate-limited during research; current test access, charging, windows, and templates require setup-time verification. No free production-messaging claim.
 
 ## 26. Concrete implementation contracts and edge cases
 

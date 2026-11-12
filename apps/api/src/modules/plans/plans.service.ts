@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Optional } from '@nestjs/common';
+import { FailureInjectionService } from '../dev/failure-injection.service.js';
 import {
   getDb,
   cases,
+  messages,
   orders,
   orderItems,
   policyVersions,
@@ -20,6 +22,7 @@ import {
   eq,
   and,
   desc,
+  inArray,
 } from '@resolvepay/db';
 import {
   Plan,
@@ -48,12 +51,14 @@ export class PlansService {
   private aiProvider: AiProvider;
   private paypalAdapter: PayPalAdapter;
 
-  constructor() {
+  constructor(
+    @Optional() private failureInjectionService?: FailureInjectionService
+  ) {
     const geminiKey = process.env.GEMINI_API_KEY;
     if (geminiKey && geminiKey.length > 10) {
       this.aiProvider = new GeminiAiClient({
         apiKey: geminiKey,
-        model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
+        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
       });
     } else {
       this.aiProvider = new DeterministicAiProvider();
@@ -86,6 +91,10 @@ export class PlansService {
     const [orderRow] = await db.select().from(orders).where(eq(orders.id, caseRow.orderId)).limit(1);
     if (!orderRow) throw new NotFoundException(`Order not found: ${caseRow.orderId}`);
 
+    if (session.actorType === 'CUSTOMER' && session.orderId !== orderRow.id &&
+        (!session.customerEmail || session.customerEmail.toLowerCase() !== orderRow.customerEmail.toLowerCase())) {
+      throw new ForbiddenException('This order is not linked to your session');
+    }
     const orderItemRows = await db.select().from(orderItems).where(eq(orderItems.orderId, orderRow.id));
 
     // Load latest published policy version
@@ -111,7 +120,23 @@ export class PlansService {
       .from(productVariants)
       .where(and(eq(productVariants.tenantId, session.tenantId), eq(productVariants.active, true)));
 
-    // 1. AI issue extraction
+    if (!orderItemRows.length) throw new BadRequestException('This order has no items to resolve');
+    if (caseRow.state !== 'OPEN' && caseRow.state !== 'OPTIONS_READY') {
+      throw new BadRequestException('This case is already in review or execution');
+    }
+    const existingPlans = await this.getPlansByCase(caseId, session.tenantId);
+    if (existingPlans.some(p => p.customerAccepted)) {
+      throw new BadRequestException('A remedy has already been accepted');
+    }
+    if (existingPlans.length && existingPlans.every(p => new Date(p.expiresAt) > new Date())) return existingPlans;
+    const customerMessages = await db.select().from(messages)
+      .where(and(eq(messages.caseId, caseId), eq(messages.senderRole, 'CUSTOMER')))
+      .orderBy(messages.createdAt);
+    const complaint = customerMessages.map(m => m.body).join('\n').slice(-12000)
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]')
+      .replace(/\b(?:\d[ -]?){10,16}\b/g, '[number]');
+    // 1. AI issue extraction from the actual customer narrative.
+
     const extractedIssue = await this.aiProvider.extractIssue({
       orderReference: orderRow.orderReference,
       orderItems: orderItemRows.map((i) => ({
@@ -120,7 +145,7 @@ export class PlansService {
         title: i.title,
         quantity: i.quantity,
       })),
-      complaintMessage: `Customer complaint regarding order items. Issue type: ${caseRow.issueType || 'damaged'}`,
+      complaintMessage: complaint,
     });
 
     const affectedItems = extractedIssue.itemRefs.length > 0
@@ -192,6 +217,29 @@ export class PlansService {
       })),
     });
 
+    // Recommendations are advisory; all prices, gates and citations remain deterministic.
+    // Explicit form values take precedence over advisory narrative extraction.
+    const customerConstraints = { ...extractedIssue.constraints, ...(caseRow.constraints as object) };
+    const explanation = await this.aiProvider.explainOptions({
+      caseSummary: extractedIssue.summary,
+      customerConstraints,
+      options: generatedPlans.map(p => ({
+        type: p.type, title: p.title, requiresReturn: p.requiresReturn,
+        refundAmount: p.refund, additionalPayment: p.additionalPayment,
+        estimatedDays: p.delivery.estimatedDays,
+        policyCitations: p.citations.map(c => c.clauseKey),
+      })),
+    });
+    const aiBrief = {
+      summary: extractedIssue.summary, missingFacts: extractedIssue.missingFacts,
+      explanation: explanation.explanationText, tradeoffs: explanation.tradeoffs,
+      recommendedOptionType: explanation.recommendedOptionType,
+      extractionSource: extractedIssue.source || 'DETERMINISTIC',
+      explanationSource: explanation.source || 'DETERMINISTIC',
+      generatedAt: new Date().toISOString(),
+    };
+    // Replace only expired, unaccepted proposals.
+    if (existingPlans.length) await db.delete(plans).where(and(eq(plans.caseId, caseId), eq(plans.customerAccepted, false)));
     // 3. Persist plans
     const persistedPlans: Plan[] = [];
     for (const p of generatedPlans) {
@@ -222,6 +270,7 @@ export class PlansService {
       .update(cases)
       .set({
         state: 'OPTIONS_READY',
+        constraints: { ...customerConstraints, aiBrief },
         issueType: extractedIssue.issueType,
         updatedAt: new Date(),
       })
@@ -251,9 +300,23 @@ export class PlansService {
 
   async acceptPlan(dto: AcceptPlanDto, session: SessionInfo): Promise<any> {
     const db = await getDb();
-    const [planRow] = await db.select().from(plans).where(eq(plans.id, dto.planId)).limit(1);
+    const [planRow] = await db.select().from(plans).where(and(eq(plans.id, dto.planId), eq(plans.tenantId, session.tenantId))).limit(1);
     if (!planRow) throw new NotFoundException(`Plan not found: ${dto.planId}`);
 
+    const [ownedOrder] = await db.select().from(orders).where(eq(orders.id, planRow.orderId)).limit(1);
+    if (session.actorType === 'CUSTOMER' && session.orderId !== planRow.orderId &&
+        (!session.customerEmail || session.customerEmail.toLowerCase() !== ownedOrder?.customerEmail.toLowerCase())) {
+      throw new ForbiddenException('This remedy is not linked to your session');
+    }
+    if (planRow.customerAccepted) return { success: true, planId: planRow.id, state: planRow.state };
+    if (!['OFFERED', 'VALIDATED'].includes(planRow.state) || planRow.version !== dto.expectedVersion) {
+      throw new BadRequestException('This proposal is no longer available. Reload your options.');
+    }
+    const siblings = await this.getPlansByCase(planRow.caseId, session.tenantId);
+    if (siblings.some(p => p.customerAccepted)) throw new BadRequestException('Another remedy has already been selected');
+    if (BigInt((planRow.planData as any).additionalPayment?.minor || '0') > 0n) {
+      throw new BadRequestException('Paid upgrades are not available yet. Please choose a refund or a no-extra-cost remedy.');
+    }
     // Verify canonical hash matches
     if (planRow.canonicalHash !== dto.expectedHash) {
       throw new BadRequestException('Plan material terms have changed. Please reload and accept fresh proposal.');
@@ -305,7 +368,7 @@ export class PlansService {
 
   async merchantDecision(dto: MerchantApprovePlanDto, session: SessionInfo): Promise<any> {
     const db = await getDb();
-    const [planRow] = await db.select().from(plans).where(eq(plans.id, dto.planId)).limit(1);
+    const [planRow] = await db.select().from(plans).where(and(eq(plans.id, dto.planId), eq(plans.tenantId, session.tenantId))).limit(1);
     if (!planRow) throw new NotFoundException(`Plan not found: ${dto.planId}`);
 
     if (planRow.canonicalHash !== dto.expectedHash) {
@@ -318,6 +381,9 @@ export class PlansService {
       return { success: true, decision: 'REJECTED' };
     }
 
+    if (!planRow.customerAccepted || !['SELECTED', 'READY'].includes(planRow.state)) {
+      throw new BadRequestException('Customer must accept an available remedy before merchant approval');
+    }
     // Approved
     await db
       .update(plans)
@@ -337,11 +403,28 @@ export class PlansService {
     };
   }
 
+  async approveAndExecute(dto: MerchantApprovePlanDto, session: SessionInfo) {
+    await this.merchantDecision(dto, session);
+    const db = await getDb();
+    const [row] = await db.select().from(plans).where(and(eq(plans.id, dto.planId), eq(plans.tenantId, session.tenantId))).limit(1);
+    const data = row.planData as any;
+    const [ret] = await db.select().from(returns).where(eq(returns.caseId, row.caseId)).limit(1);
+    if ((data.requiresInspection && ret?.inspectionResult !== 'PASSED') ||
+        (data.requiresReturn && !data.requiresInspection && !['RECEIVED', 'INSPECTED', 'INSPECTION_PASSED'].includes(ret?.status || ''))) {
+      return { success: true, state: 'AWAITING_RETURN', message: 'Approved. Record the required return or inspection, then execute.' };
+    }
+    return this.executePlan(dto.planId, session);
+  }
+
   async executePlan(planId: string, session: SessionInfo): Promise<any> {
     const db = await getDb();
-    const [planRow] = await db.select().from(plans).where(eq(plans.id, planId)).limit(1);
+    const [planRow] = await db.select().from(plans).where(and(eq(plans.id, planId), eq(plans.tenantId, session.tenantId))).limit(1);
     if (!planRow) throw new NotFoundException(`Plan not found: ${planId}`);
 
+    if (planRow.state === 'COMPLETED') return { success: true, state: 'COMPLETED', alreadyCompleted: true };
+    if (BigInt((planRow.planData as any).additionalPayment?.minor || '0') > 0n) {
+      throw new BadRequestException('Additional payment capture is not implemented; this remedy cannot execute');
+    }
     if (!planRow.customerAccepted) {
       throw new BadRequestException('Customer has not accepted this remedy plan');
     }
@@ -359,6 +442,11 @@ export class PlansService {
       }
     }
 
+    if (planData.requiresReturn && !planData.requiresInspection) {
+      const [ret] = await db.select().from(returns).where(eq(returns.caseId, planRow.caseId)).limit(1);
+      if (!ret || !['RECEIVED', 'INSPECTED', 'INSPECTION_PASSED'].includes(ret.status)) throw new BadRequestException('The item must be received before execution');
+    }
+
     // Create or retrieve resolution record
     let [resolution] = await db.select().from(resolutions).where(eq(resolutions.planId, planRow.id)).limit(1);
     if (!resolution) {
@@ -374,8 +462,34 @@ export class PlansService {
         .returning();
     }
 
+    // Check resolutionSteps for prior attempt / recovery state
+    const [existingRefundStep] = await db
+      .select()
+      .from(resolutionSteps)
+      .where(
+        and(
+          eq(resolutionSteps.resolutionId, resolution.id),
+          eq(resolutionSteps.stepKey, 'EXECUTE_REFUND')
+        )
+      )
+      .limit(1);
+
+    if (existingRefundStep?.state === 'UNKNOWN') {
+      throw new BadRequestException(
+        `RECOVERY_REQUIRED: Operation is in an UNKNOWN state (Idempotency Key: ${existingRefundStep.externalReference}). Please reconcile provider status in Recovery Queue before retrying.`
+      );
+    }
+
+    if (existingRefundStep?.state === 'SUCCEEDED') {
+      return { success: true, state: 'COMPLETED', alreadyCompleted: true };
+    }
+
+    const [claimed] = await db.update(plans).set({ state: 'EXECUTING' })
+      .where(and(eq(plans.id, planRow.id), inArray(plans.state, ['READY', 'EXECUTING']))).returning();
+    if (!claimed) throw new BadRequestException('Execution already started or requires reconciliation. Do not repeat the payment.');
+
     // Execute Refund Saga step if plan has refund amount
-    const refundAmountMinor = BigInt(planData.refund.minor);
+    const refundAmountMinor = BigInt(planData.refund?.minor || '0');
     let refundResult: any = null;
 
     if (refundAmountMinor > 0n) {
@@ -397,6 +511,72 @@ export class PlansService {
         throw new BadRequestException('Refund ceiling exceeded: refund amount exceeds remaining capture balance');
       }
 
+      const requestId = `resolvepay-refund-${planRow.id}`;
+
+      // Insert or update resolutionStep as IN_FLIGHT
+      let activeStep = existingRefundStep;
+      if (!activeStep) {
+        [activeStep] = await db
+          .insert(resolutionSteps)
+          .values({
+            tenantId: planRow.tenantId,
+            resolutionId: resolution.id,
+            stepKey: 'EXECUTE_REFUND',
+            state: 'IN_FLIGHT',
+            externalReference: requestId,
+            leaseOwner: 'api-executor',
+            leaseUntil: new Date(Date.now() + 60_000),
+            attempt: 1,
+          })
+          .returning();
+      } else {
+        await db
+          .update(resolutionSteps)
+          .set({
+            state: 'IN_FLIGHT',
+            externalReference: requestId,
+            attempt: activeStep.attempt + 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(resolutionSteps.id, activeStep.id));
+      }
+
+      // Proposal 2: Failure Injection Simulation Check
+      const shouldTimeout = this.failureInjectionService?.shouldSimulateRefundTimeout();
+      if (shouldTimeout) {
+        // Dispatches the request to provider/mock with requestId so PayPal receives it,
+        // BUT network drops response before ResolvePay receives HTTP OK!
+        try {
+          await this.paypalAdapter.refundCapture({
+            captureId: capture.providerCaptureId,
+            amount: planData.refund,
+            requestId,
+            reason: `Remedy resolution for case ${planRow.caseId}`,
+          });
+        } catch {
+          // In simulation, ensure PayPal mock records it
+        }
+
+        // Sever the response! Mark step as UNKNOWN and resolution as UNKNOWN_RECONCILING
+        await db
+          .update(resolutionSteps)
+          .set({
+            state: 'UNKNOWN',
+            error: `SIMULATED_NETWORK_TIMEOUT: HTTP 504 Gateway Timeout while awaiting PayPal confirmation. Retained idempotency key: ${requestId}.`,
+            updatedAt: new Date(),
+          })
+          .where(eq(resolutionSteps.id, activeStep.id));
+
+        await db
+          .update(resolutions)
+          .set({ state: 'UNKNOWN_RECONCILING', updatedAt: new Date() })
+          .where(eq(resolutions.id, resolution.id));
+
+        throw new BadRequestException(
+          `SIMULATED_NETWORK_TIMEOUT: PayPal refund request was dispatched with idempotency key "${requestId}", but the network response timed out. The operation is in UNKNOWN state. Reconcile provider status in Recovery Queue before retrying.`
+        );
+      }
+
       // Call PayPal refund with synthetic demo resilience
       let ppRefund: { id: string; status: string; amount?: any };
       const isSyntheticCapture =
@@ -406,81 +586,113 @@ export class PlansService {
         capture.providerCaptureId.startsWith('mock-');
 
       if (isSyntheticCapture) {
-        ppRefund = {
-          id: `REF-SYNTH-${Date.now().toString().slice(-6)}`,
-          status: 'COMPLETED',
-          amount: { currency_code: planData.refund.currency, value: (Number(planData.refund.minor) / 100).toFixed(2) },
-        };
-      } else {
-        try {
-          ppRefund = await this.paypalAdapter.refundCapture({
-            captureId: capture.providerCaptureId,
-            amount: planData.refund,
-            reason: `Remedy resolution for case ${planRow.caseId}`,
-          });
-        } catch (refundErr: any) {
-          if (refundErr?.message?.includes('RESOURCE_NOT_FOUND') || refundErr?.message?.includes('404')) {
-            console.warn(`[PayPal Refund] Capture ${capture.providerCaptureId} not found on PayPal, falling back to simulated refund for demo test.`);
-            ppRefund = {
-              id: `REF-DEMO-${Date.now().toString().slice(-6)}`,
-              status: 'COMPLETED',
-              amount: { currency_code: planData.refund.currency, value: (Number(planData.refund.minor) / 100).toFixed(2) },
-            };
-          } else {
-            throw refundErr;
-          }
+        ppRefund = await this.paypalAdapter.refundCapture({
+          captureId: capture.providerCaptureId,
+          amount: planData.refund,
+          requestId,
+          reason: `Remedy resolution for case ${planRow.caseId}`,
+        });
+        if (!ppRefund?.id) {
+          ppRefund = {
+            id: `REF-SYNTH-${Date.now().toString().slice(-6)}`,
+            status: 'COMPLETED',
+            amount: { currency_code: planData.refund.currency, value: (Number(planData.refund.minor) / 100).toFixed(2) },
+          };
         }
+      } else {
+        ppRefund = await this.paypalAdapter.refundCapture({
+          captureId: capture.providerCaptureId,
+          amount: planData.refund,
+          requestId,
+          reason: `Remedy resolution for case ${planRow.caseId}`,
+        });
       }
 
-      // Record refund row
-      const [refundRecord] = await db
-        .insert(refunds)
-        .values({
-          tenantId: planRow.tenantId,
-          captureId: capture.id,
-          resolutionId: resolution.id,
-          providerRefundId: ppRefund.id,
-          amountMinor: planData.refund.minor,
-          currency: planData.refund.currency,
-          status: 'COMPLETED',
-        })
-        .returning();
+      if (ppRefund.status !== 'COMPLETED') {
+        await db
+          .update(resolutionSteps)
+          .set({ state: 'UNKNOWN', error: 'PayPal refund status not completed', updatedAt: new Date() })
+          .where(eq(resolutionSteps.id, activeStep.id));
+        await db.update(resolutions).set({ state: 'UNKNOWN_RECONCILING', updatedAt: new Date() }).where(eq(resolutions.id, resolution.id));
+        throw new BadRequestException('PayPal has not confirmed completion. Reconcile provider status before continuing.');
+      }
 
-      // Update capture refunded balance
+      // Mark step SUCCEEDED
       await db
-        .update(captures)
+        .update(resolutionSteps)
         .set({
-          refundedMinor: (alreadyRefundedMinor + refundAmountMinor).toString(),
+          state: 'SUCCEEDED',
+          externalReference: ppRefund.id,
+          updatedAt: new Date(),
         })
-        .where(eq(captures.id, capture.id));
+        .where(eq(resolutionSteps.id, activeStep.id));
 
-      // Post double-entry journal transaction
-      const journalTxn = buildRefundJournal({
-        orderId: planRow.orderId,
-        refundId: refundRecord.id,
-        itemRefundMinor: planData.refund.minor,
-        totalRefundMinor: planData.refund.minor,
-        currency: planData.refund.currency,
-      });
+      // Record refund row if not existing
+      let [refundRecord] = await db
+        .select()
+        .from(refunds)
+        .where(eq(refunds.resolutionId, resolution.id))
+        .limit(1);
 
-      const [txRecord] = await db
-        .insert(journalTransactions)
-        .values({
-          tenantId: planRow.tenantId,
-          businessEventKey: journalTxn.businessEventKey,
-          description: journalTxn.description,
-          currency: journalTxn.currency,
-        })
-        .returning();
+      if (!refundRecord) {
+        [refundRecord] = await db
+          .insert(refunds)
+          .values({
+            tenantId: planRow.tenantId,
+            captureId: capture.id,
+            resolutionId: resolution.id,
+            providerRefundId: ppRefund.id,
+            amountMinor: planData.refund.minor,
+            currency: planData.refund.currency,
+            status: 'COMPLETED',
+          })
+          .returning();
 
-      for (const entry of journalTxn.entries) {
-        await db.insert(journalEntries).values({
-          tenantId: planRow.tenantId,
-          transactionId: txRecord.id,
-          accountCode: entry.accountCode,
-          debitMinor: entry.debitMinor,
-          creditMinor: entry.creditMinor,
+        // Update capture refunded balance
+        await db
+          .update(captures)
+          .set({
+            refundedMinor: (alreadyRefundedMinor + refundAmountMinor).toString(),
+          })
+          .where(eq(captures.id, capture.id));
+      }
+
+      // Post double-entry journal transaction (idempotent: avoid duplicate)
+      const journalKey = `REFUND_SETTLED:${refundRecord.id}`;
+      const [existingTx] = await db
+        .select()
+        .from(journalTransactions)
+        .where(eq(journalTransactions.businessEventKey, journalKey))
+        .limit(1);
+
+      if (!existingTx) {
+        const journalTxn = buildRefundJournal({
+          orderId: planRow.orderId,
+          refundId: refundRecord.id,
+          itemRefundMinor: planData.refund.minor,
+          totalRefundMinor: planData.refund.minor,
+          currency: planData.refund.currency,
         });
+
+        const [txRecord] = await db
+          .insert(journalTransactions)
+          .values({
+            tenantId: planRow.tenantId,
+            businessEventKey: journalTxn.businessEventKey,
+            description: journalTxn.description,
+            currency: journalTxn.currency,
+          })
+          .returning();
+
+        for (const entry of journalTxn.entries) {
+          await db.insert(journalEntries).values({
+            tenantId: planRow.tenantId,
+            transactionId: txRecord.id,
+            accountCode: entry.accountCode,
+            debitMinor: entry.debitMinor,
+            creditMinor: entry.creditMinor,
+          });
+        }
       }
 
       refundResult = {

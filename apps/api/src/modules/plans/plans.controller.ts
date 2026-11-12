@@ -12,6 +12,7 @@ import {
   AuthenticatedRequest,
   SessionAuthGuard,
   MerchantRoleGuard,
+  CaseAccessGuard,
 } from '../../common/guards.js';
 import {
   AcceptPlanDtoSchema,
@@ -24,11 +25,13 @@ export class PlansController {
   constructor(private plansService: PlansService) {}
 
   @Post('cases/:id/proposals')
+  @UseGuards(CaseAccessGuard)
   async generateProposals(@Param('id') caseId: string, @Req() req: AuthenticatedRequest) {
     return await this.plansService.generateProposals(caseId, req.sessionInfo!);
   }
 
   @Get('cases/:id/plans')
+  @UseGuards(CaseAccessGuard)
   async getPlans(@Param('id') caseId: string, @Req() req: AuthenticatedRequest) {
     return await this.plansService.getPlansByCase(caseId, req.tenantId!);
   }
@@ -46,6 +49,13 @@ export class PlansController {
     return await this.plansService.merchantDecision(parsed, req.sessionInfo!);
   }
 
+  @Post('plans/:id/approve-and-execute')
+  @UseGuards(MerchantRoleGuard)
+  async approveAndExecute(@Param('id') planId: string, @Body() body: unknown, @Req() req: AuthenticatedRequest) {
+    const parsed = MerchantApprovePlanDtoSchema.parse({ ...(body as any), planId, decision: 'APPROVED' });
+    return this.plansService.approveAndExecute(parsed, req.sessionInfo!);
+  }
+
   @Post('plans/:id/reject')
   @UseGuards(MerchantRoleGuard)
   async rejectPlan(@Param('id') planId: string, @Body() body: unknown, @Req() req: AuthenticatedRequest) {
@@ -54,6 +64,7 @@ export class PlansController {
   }
 
   @Post('plans/:id/execute')
+  @UseGuards(MerchantRoleGuard)
   async executePlan(@Param('id') planId: string, @Req() req: AuthenticatedRequest) {
     return await this.plansService.executePlan(planId, req.sessionInfo!);
   }

@@ -21,6 +21,10 @@ import {
   CreditCard,
   ExternalLink,
 } from 'lucide-react';
+import { ResolutionBrief } from '../../../../components/resolution-brief';
+import { ResolutionReceiptView } from '../../../../components/resolution-receipt';
+import { EvidenceCompletenessView } from '../../../../components/evidence-completeness';
+import { RecoverySimulator } from '../../../../components/recovery-simulator';
 import { fetchJson } from '../../../../lib/api';
 
 export default function OrderDisputePage() {
@@ -28,69 +32,34 @@ export default function OrderDisputePage() {
   const orderId = params.id as string;
   const queryClient = useQueryClient();
 
-  const [complaintText, setComplaintText] = useState(
-    'The zipper on my Apex Trail Backpack 40L split open on first use. Can I get a replacement or refund?'
-  );
-  const [issueType, setIssueType] = useState('damaged');
+  const [complaintText, setComplaintText] = useState('');
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [sessionReady, setSessionReady] = useState(false);
-
-  // Auto-establish customer session for this order if not already signed in
-  useEffect(() => {
-    async function initSession() {
-      try {
-        const session = await fetchJson<any>('/api/v1/auth/session');
-        if (session && session.actorType === 'CUSTOMER') {
-          setSessionReady(true);
-          return;
-        }
-      } catch {
-        // No active session
-      }
-
-      try {
-        await fetchJson<any>('/api/v1/auth/login-dev', {
-          method: 'POST',
-          body: JSON.stringify({
-            persona: 'CUSTOMER',
-            orderId,
-            tenantSlug: 'default-merchant',
-          }),
-        });
-      } catch (err) {
-        console.warn('Auto-session notice:', err);
-      } finally {
-        setSessionReady(true);
-      }
-    }
-
-    if (orderId) {
-      initSession();
-    }
-  }, [orderId]);
+  const sessionReady = true;
 
   // 1. Fetch Order
-  const { data: order, isLoading: orderLoading } = useQuery({
+  const { data: order, isLoading: orderLoading, error: orderError, refetch: refetchOrder } = useQuery({
     queryKey: ['order', orderId],
     queryFn: () => fetchJson<any>(`/api/v1/orders/${orderId}`),
     enabled: sessionReady && !!orderId,
   });
 
   // 2. Fetch Cases for this tenant
-  const { data: casesList, refetch: refetchCases } = useQuery({
+  const { data: casesList, refetch: refetchCases, error: casesError, isPending: casesLoading } = useQuery({
     queryKey: ['cases'],
     queryFn: () => fetchJson<any[]>('/api/v1/cases'),
     enabled: sessionReady,
+    refetchInterval: 15_000,
   });
 
   const activeCaseSummary = casesList?.find((c: any) => c.orderId === orderId);
 
   // 3. Fetch Case Details if active case exists
-  const { data: caseDetails, refetch: refetchCaseDetails } = useQuery({
+  const { data: caseDetails, refetch: refetchCaseDetails, error: caseError, isPending: caseLoading } = useQuery({
     queryKey: ['case-details', activeCaseSummary?.id],
     queryFn: () => fetchJson<any>(`/api/v1/cases/${activeCaseSummary?.id}`),
     enabled: !!activeCaseSummary?.id,
+    refetchInterval: 10_000,
   });
 
   // 4. Fetch Timeline
@@ -98,6 +67,15 @@ export default function OrderDisputePage() {
     queryKey: ['case-timeline', activeCaseSummary?.id],
     queryFn: () => fetchJson<any[]>(`/api/v1/cases/${activeCaseSummary?.id}/timeline`),
     enabled: !!activeCaseSummary?.id,
+    refetchInterval: 10_000,
+  });
+
+  // 5. Fetch Resolution Receipt (Proposal 1)
+  const { data: receipt, isLoading: receiptLoading, refetch: refetchReceipt } = useQuery({
+    queryKey: ['receipt', activeCaseSummary?.id],
+    queryFn: () => fetchJson<any>(`/api/v1/cases/${activeCaseSummary?.id}/receipt`),
+    enabled: !!activeCaseSummary?.id,
+    refetchInterval: 10_000,
   });
 
   // Submit Complaint Mutation
@@ -108,12 +86,13 @@ export default function OrderDisputePage() {
         body: JSON.stringify({
           orderId,
           initialMessage: complaintText,
-          issueType,
         }),
       }),
-    onSuccess: () => {
-      refetchCases();
+    onSuccess: async (created) => {
+      await refetchCases();
+      generateProposalsMutation.mutate(created.id);
     },
+    onError: (error: Error) => setActionError(error.message),
   });
 
   // Generate Proposals Mutation
@@ -126,7 +105,9 @@ export default function OrderDisputePage() {
     onSuccess: () => {
       refetchCaseDetails();
       refetchCases();
+      queryClient.invalidateQueries({ queryKey: ['case-timeline'] });
     },
+    onError: (error: Error) => setActionError(error.message),
   });
 
   // Accept Plan Mutation
@@ -139,7 +120,9 @@ export default function OrderDisputePage() {
     onSuccess: () => {
       refetchCaseDetails();
       refetchCases();
+      queryClient.invalidateQueries({ queryKey: ['case-timeline'] });
     },
+    onError: (error: Error) => setActionError(error.message),
   });
 
   const [isUploading, setIsUploading] = useState(false);
@@ -202,10 +185,15 @@ export default function OrderDisputePage() {
   }
 
   const currentCase = caseDetails?.case;
+  if (orderError || casesError) return <div role="alert" className="max-w-lg mx-auto py-12 space-y-4"><h1 className="text-xl font-semibold">We could not load your order</h1><p className="text-slate-600">{(orderError || casesError)?.message}</p><button className="text-blue-800 underline" onClick={() => { refetchOrder(); refetchCases(); }}>Try again</button></div>;
+  if (casesLoading) return <p role="status" className="py-12 text-center">Loading your resolution history…</p>;
+  if (activeCaseSummary && caseLoading) return <p role="status" className="py-12 text-center">Opening your existing case.</p>;
+  if (activeCaseSummary && caseError) return <section role="alert" className="py-12 space-y-4"><h1 className="text-xl font-semibold">Your case could not be loaded</h1><p>Your request is saved. Try again to view your options and progress.</p><button onClick={() => refetchCaseDetails()} className="text-blue-800 underline">Reload my case</button></section>;
   const casePlans = caseDetails?.plans || [];
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
+      {actionError && <div role="alert" className="bg-red-50 text-red-800 border border-red-200 rounded-md p-4 text-sm">{actionError}</div>}
       {/* Order Header Card */}
       <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -262,7 +250,7 @@ export default function OrderDisputePage() {
             Report an Issue with this Order
           </h2>
           <p className="text-xs text-slate-600 mb-6 leading-relaxed">
-            Explain the issue below. ResolvePay will inspect store policy and compute guaranteed resolution options for your review.
+            Explain the issue below. ResolvePay will inspect store policy and prepare policy-based resolution options for your review.
           </p>
 
           <form
@@ -273,24 +261,13 @@ export default function OrderDisputePage() {
             className="space-y-4"
           >
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Issue Type</label>
-              <select
-                value={issueType}
-                onChange={(e) => setIssueType(e.target.value)}
-                className="w-full sm:w-64 px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none"
-              >
-                <option value="damaged">Damaged or Defective Item</option>
-                <option value="missing">Missing Item from Package</option>
-                <option value="wrong_item">Wrong Item / Color / Size Received</option>
-                <option value="cancel">Return for Exchange or Refund</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                Description of the Issue
+              <label htmlFor="complaint" className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                What happened?
               </label>
               <textarea
+                id="complaint"
+                placeholder="Tell us what went wrong and whether you prefer a refund or replacement."
+                maxLength={6000}
                 value={complaintText}
                 onChange={(e) => setComplaintText(e.target.value)}
                 rows={3}
@@ -304,7 +281,7 @@ export default function OrderDisputePage() {
               disabled={createCaseMutation.isPending}
               className="inline-flex items-center px-4 py-2.5 rounded-md text-sm font-semibold text-white bg-blue-800 hover:bg-blue-700 shadow-sm disabled:opacity-50 transition"
             >
-              {createCaseMutation.isPending ? 'Submitting...' : 'Submit Resolution Request'}
+              {createCaseMutation.isPending ? 'Opening your case…' : 'Find my resolution'}
               <ArrowRight className="w-4 h-4 ml-2" />
             </button>
           </form>
@@ -319,7 +296,7 @@ export default function OrderDisputePage() {
             <div>
               <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Active Case State</div>
               <div className="text-lg font-bold text-slate-900 mt-0.5 flex items-center space-x-2">
-                <span>{currentCase.state}</span>
+                <span>{currentCase.state.toLowerCase().replaceAll('_', ' ')}</span>
                 <span className="text-xs font-normal text-slate-500 font-mono">({currentCase.issueType})</span>
               </div>
             </div>
@@ -332,11 +309,41 @@ export default function OrderDisputePage() {
                 className="inline-flex items-center px-4 py-2 rounded-md text-xs font-semibold text-white bg-blue-800 hover:bg-blue-700 shadow-sm transition"
               >
                 <Sparkles className="w-4 h-4 mr-1.5" />
-                {generateProposalsMutation.isPending ? 'Evaluating Policies...' : 'Generate AI Grounded Remedies'}
+                {generateProposalsMutation.isPending ? 'Evaluating Policies...' : 'Prepare my remedies'}
               </button>
             )}
           </div>
 
+          <ResolutionBrief brief={currentCase.constraints?.aiBrief} />
+
+          {/* Proposal 3: Evidence Completeness Assistant */}
+          <EvidenceCompletenessView
+            caseId={currentCase.id}
+            hasAcceptedPlan={casePlans.some((p: any) => p.customerAccepted)}
+            onAnswersSaved={() => {
+              refetchCaseDetails();
+              refetchReceipt();
+            }}
+          />
+
+          {/* Proposal 2: Visible Pending Recovery State if In-Flight Timeout */}
+          {currentCase.state === 'UNKNOWN_RECONCILING' && (
+            <RecoverySimulator
+              caseId={currentCase.id}
+              planId={casePlans.find((p: any) => p.customerAccepted)?.id}
+              stepState="UNKNOWN"
+              onReconciled={() => {
+                refetchCaseDetails();
+                refetchReceipt();
+                refetchCases();
+              }}
+            />
+          )}
+          <p role="status" className="text-sm text-slate-600">
+            {currentCase.state === 'RESOLVED' ? 'Your resolution is complete. View the timeline below.' :
+             casePlans.some((p: any) => p.customerAccepted) ? 'Your choice is saved. The merchant will review it and verify any required return.' :
+             generateProposalsMutation.isPending ? 'Reading your complaint and preparing policy-based remedies…' : 'Review the options below and choose what works for you.'}
+          </p>
           {/* Photo Evidence Section */}
           <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
@@ -449,6 +456,7 @@ export default function OrderDisputePage() {
                           )}
                         </div>
 
+                        {currentCase.constraints?.aiBrief?.recommendedOptionType === plan.type && <p className="text-xs font-semibold text-blue-800 mb-2">Suggested for review</p>}
                         <h3 className="font-bold text-slate-900 text-sm leading-snug">{plan.title}</h3>
                         <p className="mt-2 text-xs text-slate-600 leading-relaxed">{plan.explanation}</p>
 
@@ -471,7 +479,7 @@ export default function OrderDisputePage() {
                           <div className="flex justify-between">
                             <span className="text-slate-500">Return Required:</span>
                             <span className="font-semibold text-slate-800">
-                              {plan.requiresReturn ? 'Yes (Prepaid Label)' : 'No Return Needed'}
+                              {plan.requiresReturn ? 'Yes' : 'No return needed'}
                             </span>
                           </div>
 
@@ -503,20 +511,7 @@ export default function OrderDisputePage() {
                             <div className="text-xs text-center text-emerald-800 font-semibold py-1">
                               ✓ Accepted & Awaiting Execution
                             </div>
-                            {plan.additionalPayment && Number(plan.additionalPayment.minor) > 0 && !extraPaymentSuccess && (
-                              <button
-                                onClick={() => setExtraPaymentSuccess(true)}
-                                className="w-full inline-flex items-center justify-center py-2 px-3 text-xs font-semibold text-slate-900 bg-amber-400 hover:bg-amber-300 rounded-md shadow-sm transition"
-                              >
-                                <CreditCard className="w-3.5 h-3.5 mr-1.5" />
-                                Pay ${extraDollars} USD Difference via PayPal
-                              </button>
-                            )}
-                            {extraPaymentSuccess && (
-                              <div className="text-[11px] text-center text-emerald-800 font-medium bg-emerald-50 py-1.5 px-2 rounded border border-emerald-200">
-                                ✓ Difference payment of ${extraDollars} USD authorized via PayPal
-                              </div>
-                            )}
+
                           </div>
                         ) : (
                           <button
@@ -527,10 +522,10 @@ export default function OrderDisputePage() {
                                 expectedVersion: plan.version,
                               })
                             }
-                            disabled={acceptPlanMutation.isPending}
+                            disabled={acceptPlanMutation.isPending || casePlans.some((p: any) => p.customerAccepted) || Number(plan.additionalPayment?.minor || 0) > 0}
                             className="w-full inline-flex items-center justify-center py-2 px-3 text-xs font-semibold text-white bg-blue-800 hover:bg-blue-700 rounded-md shadow-sm transition"
                           >
-                            Accept this Remedy Plan
+                            {Number(plan.additionalPayment?.minor || 0) > 0 ? 'Paid upgrade unavailable' : 'Choose this remedy'}
                           </button>
                         )}
                         <div className="mt-2 text-center text-[10px] text-slate-400 font-mono truncate">
@@ -543,6 +538,13 @@ export default function OrderDisputePage() {
               </div>
             </div>
           )}
+
+          {/* Proposal 1: Audited Resolution Receipt & Financial Subledger */}
+          <ResolutionReceiptView
+            receipt={receipt}
+            isLoading={receiptLoading}
+            onRefresh={refetchReceipt}
+          />
 
           {/* Unified Timeline */}
           {timeline && timeline.length > 0 && (
@@ -578,4 +580,3 @@ export default function OrderDisputePage() {
     </div>
   );
 }
-

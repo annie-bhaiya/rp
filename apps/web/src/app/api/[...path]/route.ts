@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import http from 'node:http';
+import https from 'node:https';
 
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -9,81 +11,105 @@ const HOP_BY_HOP_HEADERS = new Set([
   'trailer',
   'transfer-encoding',
   'upgrade',
-  'content-length',
-  'content-encoding',
   'host',
 ]);
 
 async function handleProxy(req: NextRequest, params: { path: string[] }) {
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    const origin = req.headers.get('origin');
+    const host = req.headers.get('x-forwarded-host') || req.headers.get('host');
+    const proto = req.headers.get('x-forwarded-proto') || 'https';
+    const allowedOrigin = host ? `${proto}://${host}` : req.nextUrl.origin;
+    if (req.headers.get('sec-fetch-site') === 'cross-site' || (origin && origin !== req.nextUrl.origin && origin !== allowedOrigin)) {
+      return NextResponse.json({ message: 'Request origin is not allowed.' }, { status: 403 });
+    }
+  }
+
   const apiBase =
     process.env.API_INTERNAL_URL ||
     'https://resolvepay-api.politetree-c3c2d975.centralindia.azurecontainerapps.io';
   const pathname = `/api/${params.path.join('/')}`;
   const search = req.nextUrl.search;
-  const targetUrl = `${apiBase}${pathname}${search}`;
+  const targetUrl = new URL(`${apiBase}${pathname}${search}`);
 
-  const forwardHeaders = new Headers();
+  const forwardHeaders: Record<string, string> = {};
   req.headers.forEach((value, key) => {
     if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
-      forwardHeaders.set(key, value);
+      forwardHeaders[key.toLowerCase()] = value;
     }
   });
 
-  // Ensure client IP / host are noted
   const clientHost = req.headers.get('host');
   if (clientHost) {
-    forwardHeaders.set('x-forwarded-host', clientHost);
+    forwardHeaders['x-forwarded-host'] = clientHost;
   }
 
-  let body: BodyInit | undefined;
+  let bodyBuffer: Buffer | undefined;
   if (req.method !== 'GET' && req.method !== 'HEAD') {
-    const arrayBuffer = await req.arrayBuffer();
-    if (arrayBuffer.byteLength > 0) {
-      body = arrayBuffer;
+    const ab = await req.arrayBuffer();
+    if (ab.byteLength > 0) {
+      bodyBuffer = Buffer.from(ab);
+      forwardHeaders['content-length'] = String(bodyBuffer.byteLength);
     }
   }
 
-  try {
-    const response = await fetch(targetUrl, {
-      method: req.method,
-      headers: forwardHeaders,
-      body,
-      redirect: 'manual',
-    });
+  const transport = targetUrl.protocol === 'https:' ? https : http;
 
-    const resHeaders = new Headers();
-    response.headers.forEach((value, key) => {
-      if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
-        resHeaders.set(key, value);
-      }
-    });
+  return new Promise<NextResponse>((resolve) => {
+    const proxyReq = transport.request(
+      targetUrl,
+      {
+        method: req.method,
+        headers: forwardHeaders,
+      },
+      (proxyRes) => {
+        const chunks: Buffer[] = [];
+        proxyRes.on('data', (chunk) => chunks.push(chunk));
+        proxyRes.on('end', () => {
+          const resBody = Buffer.concat(chunks);
+          const resHeaders = new Headers();
 
-    // Node / Next.js getSetCookie support for multi-cookie preservation
-    const getSetCookie = (response.headers as any).getSetCookie;
-    if (typeof getSetCookie === 'function') {
-      const cookies: string[] = getSetCookie.call(response.headers);
-      if (cookies && cookies.length > 0) {
-        resHeaders.delete('set-cookie');
-        for (const cookie of cookies) {
-          resHeaders.append('set-cookie', cookie);
-        }
-      }
-    }
+          for (const [key, value] of Object.entries(proxyRes.headers)) {
+            if (!value || HOP_BY_HOP_HEADERS.has(key.toLowerCase())) continue;
+            if (key.toLowerCase() === 'set-cookie') {
+              if (Array.isArray(value)) {
+                value.forEach((c) => resHeaders.append('set-cookie', c));
+              } else {
+                resHeaders.append('set-cookie', value);
+              }
+            } else {
+              resHeaders.set(key, Array.isArray(value) ? value.join(', ') : value);
+            }
+          }
 
-    const responseBody = await response.arrayBuffer();
+          resHeaders.set('Cache-Control', 'private, no-store');
 
-    return new NextResponse(responseBody, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: resHeaders,
-    });
-  } catch (err: any) {
-    console.error('[Web API Gateway Proxy Error]:', err);
-    return NextResponse.json(
-      { message: 'API Gateway Connection Error', error: err?.message },
-      { status: 502 },
+          resolve(
+            new NextResponse(resBody, {
+              status: proxyRes.statusCode || 200,
+              statusText: proxyRes.statusMessage || 'OK',
+              headers: resHeaders,
+            }),
+          );
+        });
+      },
     );
-  }
+
+    proxyReq.on('error', (err) => {
+      console.error('[Web API Gateway Proxy Error]:', err);
+      resolve(
+        NextResponse.json(
+          { message: 'API Gateway Connection Error', error: err.message },
+          { status: 502 },
+        ),
+      );
+    });
+
+    if (bodyBuffer) {
+      proxyReq.write(bodyBuffer);
+    }
+    proxyReq.end();
+  });
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {

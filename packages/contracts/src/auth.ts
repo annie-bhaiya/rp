@@ -11,14 +11,14 @@ export const UserRoleSchema = z.enum([
 export type UserRole = z.infer<typeof UserRoleSchema>;
 
 export const CustomerAccessRequestDtoSchema = z.object({
-  tenantSlug: z.string().default('default-merchant'),
-  orderReference: z.string().min(1),
-  email: z.string().email(),
+  tenantSlug: z.string().trim().min(1).max(64).default('default-merchant'),
+  orderReference: z.string().trim().min(1).max(64),
+  email: z.string().trim().email().max(255),
 });
 export type CustomerAccessRequestDto = z.infer<typeof CustomerAccessRequestDtoSchema>;
 
 export const CustomerAccessRedeemDtoSchema = z.object({
-  token: z.string().min(16),
+  token: z.string().regex(/^[a-f0-9]{64}$/, 'Invalid access link. Please request a new one.'),
 });
 export type CustomerAccessRedeemDto = z.infer<typeof CustomerAccessRedeemDtoSchema>;
 

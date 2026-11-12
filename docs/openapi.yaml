@@ -1,0 +1,814 @@
+openapi: 3.0.0
+paths:
+  /api/v1/auth/config:
+    get:
+      operationId: AuthController_config
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Auth
+      summary: Get Authentication Configuration
+      description: Retrieves current authentication capability flags, including whether 1-click demo persona switching is enabled.
+  /api/v1/auth/customer/access/request:
+    post:
+      operationId: AuthController_requestAccess
+      parameters: []
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Auth
+      summary: Request Customer Access Link
+      description: Generates and delivers a single-use access link for a customer based on normalized order reference and customer email.
+  /api/v1/auth/customer/access/redeem:
+    post:
+      operationId: AuthController_redeemAccess
+      parameters: []
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Auth
+      summary: Redeem Customer Access Link
+      description: Redeems a single-use customer access token, establishing an authenticated session with secure httpOnly cookie.
+  /api/v1/auth/merchant/access/request:
+    post:
+      operationId: AuthController_requestMerchant
+      parameters: []
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Auth
+      summary: Request Merchant Access Link
+      description: Sends a magic sign-in link to a registered merchant user email for store workspace access.
+  /api/v1/auth/merchant/access/redeem:
+    post:
+      operationId: AuthController_redeemMerchant
+      parameters: []
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Auth
+      summary: Redeem Merchant Access Link
+      description: Redeems a merchant login token, verifies active store membership, and establishes an authenticated merchant session.
+  /api/v1/auth/login-dev:
+    post:
+      operationId: AuthController_loginDev
+      parameters: []
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Auth
+      summary: Switch Development Persona
+      description: Instantly authenticates as a demo persona (OWNER, APPROVER, JUDGE, or CUSTOMER) when demo mode is active.
+  /api/v1/auth/session:
+    get:
+      operationId: AuthController_getSession
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Auth
+      summary: Get Current Session
+      description: Validates and returns the active session actor, role, tenant, and expiration from the session cookie.
+  /api/v1/auth/logout:
+    post:
+      operationId: AuthController_logout
+      parameters: []
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Auth
+      summary: Sign Out
+      description: Revokes the active session token server-side and clears the resolvepay_session cookie.
+  /api/v1/catalog:
+    get:
+      operationId: CatalogController_getCatalog
+      parameters:
+        - name: tenantSlug
+          required: true
+          in: query
+          schema:
+            type: string
+            description: Unique merchant store identifier slug
+            example: default-merchant
+          description: Unique merchant store identifier slug
+          example: default-merchant
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Catalog
+      summary: Get Product Catalog
+      description: Retrieves active products, product variants, pricing, and available inventory for a merchant store.
+  /api/v1/checkout/orders:
+    post:
+      operationId: CatalogController_createCheckoutOrder
+      parameters: []
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Catalog
+      summary: Create Checkout Order
+      description: Initializes a purchase order with line items, calculating subtotal, tax, and total minor currency amounts.
+  /api/v1/checkout/orders/{id}/capture:
+    post:
+      operationId: CatalogController_captureCheckoutOrder
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Catalog
+      summary: Capture Checkout Order
+      description: Captures authorized funds for a checkout order and records initial double-entry subledger clearing entries.
+  /api/v1/orders/{id}:
+    get:
+      operationId: CatalogController_getOrder
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Catalog
+      summary: Get Order Details
+      description: Retrieves detailed order information including line items, capture IDs, and financial totals for an authorized order.
+  /api/v1/cases:
+    post:
+      operationId: CasesController_createCase
+      parameters: []
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Cases
+      summary: Create Dispute Case
+      description: Opens a new dispute case for an eligible order, creating initial customer complaint timeline events.
+    get:
+      operationId: CasesController_listCases
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Cases
+      summary: List Dispute Cases
+      description: Lists dispute cases scoped to the authenticated customer's order or all store cases for merchants.
+  /api/v1/cases/{id}:
+    get:
+      operationId: CasesController_getCase
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Cases
+      summary: Get Case Details
+      description: Retrieves complete dispute case details, state machine status, and order metadata.
+  /api/v1/cases/{id}/messages:
+    post:
+      operationId: CasesController_addMessage
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Cases
+      summary: Send Case Message
+      description: Appends a verified customer or merchant message to the dispute case timeline.
+  /api/v1/cases/{id}/timeline:
+    get:
+      operationId: CasesController_getTimeline
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Cases
+      summary: Get Case Timeline
+      description: Returns chronological audit events, messages, policy evaluations, and payment updates for a case.
+  /api/v1/cases/{id}/evidence/upload-intent:
+    post:
+      operationId: CasesController_createEvidenceIntent
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Cases
+      summary: Create Evidence Upload Intent
+      description: Initializes an evidence upload slot and returns target upload metadata and hash requirements.
+  /api/v1/cases/{id}/evidence/{evidenceId}/upload:
+    post:
+      operationId: CasesController_uploadEvidenceFile
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+        - name: evidenceId
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Evidence item UUID identifier
+            example: 90000000-0000-0000-0000-000000000001
+          description: Evidence item UUID identifier
+          example: 90000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Cases
+      summary: Upload Evidence File
+      description: Uploads binary photo evidence content, calculating SHA-256 hash for tamper-proof audit trails.
+  /api/v1/cases/{id}/evidence/{evidenceId}/complete:
+    post:
+      operationId: CasesController_completeEvidenceUpload
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+        - name: evidenceId
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Evidence item UUID identifier
+            example: 90000000-0000-0000-0000-000000000001
+          description: Evidence item UUID identifier
+          example: 90000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Cases
+      summary: Complete Evidence Upload
+      description: Marks evidence upload as completed and triggers policy validation checks.
+  /api/v1/cases/{id}/evidence/{evidenceId}/file:
+    get:
+      operationId: CasesController_getEvidenceFile
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+        - name: evidenceId
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Evidence item UUID identifier
+            example: 90000000-0000-0000-0000-000000000001
+          description: Evidence item UUID identifier
+          example: 90000000-0000-0000-0000-000000000001
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Cases
+      summary: Download Evidence File
+      description: Downloads raw evidence file bytes for authorized merchant inspection.
+  /api/v1/cases/{id}/completeness:
+    get:
+      operationId: CasesController_getCompleteness
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Cases
+      summary: Assess Evidence Completeness
+      description: AI-assisted evaluation of customer complaint narrative against active merchant policy clauses, generating targeted clarification questions.
+  /api/v1/cases/{id}/completeness/answers:
+    post:
+      operationId: CasesController_saveCompletenessAnswers
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Cases
+      summary: Submit Completeness Answers
+      description: Submits customer answers to targeted clarification questions, updating case constraints and re-evaluating remedy proposals.
+  /api/v1/cases/{id}/proposals:
+    post:
+      operationId: PlansController_generateProposals
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Plans
+      summary: Generate Remedy Proposals
+      description: Evaluates order items and policies to generate SHA-256 hashed remedy proposals (Refund, Replacement, Exchange).
+  /api/v1/cases/{id}/plans:
+    get:
+      operationId: PlansController_getPlans
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Plans
+      summary: List Remedy Plans
+      description: Lists all proposed remedy plans with exact monetary calculations and return requirements.
+  /api/v1/plans/{id}/accept:
+    post:
+      operationId: PlansController_acceptPlan
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Plans
+      summary: Accept Remedy Plan
+      description: Records customer consent to a specific remedy proposal bound strictly to its canonical hash.
+  /api/v1/plans/{id}/approve:
+    post:
+      operationId: PlansController_approvePlan
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Plans
+      summary: Approve Remedy Plan
+      description: Merchant authorization of customer-accepted remedy proposal bound to canonical plan hash.
+  /api/v1/plans/{id}/approve-and-execute:
+    post:
+      operationId: PlansController_approveAndExecute
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Plans
+      summary: Approve and Execute Plan
+      description: Atomically approves accepted plan and dispatches automated financial refund or inventory replacement.
+  /api/v1/plans/{id}/reject:
+    post:
+      operationId: PlansController_rejectPlan
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Plans
+      summary: Reject Remedy Plan
+      description: Rejects a proposed remedy plan and returns the case to manual review.
+  /api/v1/plans/{id}/execute:
+    post:
+      operationId: PlansController_executePlan
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Plans
+      summary: Execute Resolution Steps
+      description: Executes saga orchestration steps (PayPal refund, replacement order creation, subledger balancing).
+  /api/v1/dev/failure-injection:
+    get:
+      operationId: DevController_getFailureInjection
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Dev
+      summary: Get Failure Injection Status
+      description: Returns currently active failure injection simulation mode and trigger count.
+    post:
+      operationId: DevController_setFailureInjection
+      parameters: []
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Dev
+      summary: Configure Failure Injection
+      description: Sets chaos simulation mode (PROVIDER_DROP_BEFORE_RESPONSE, PROVIDER_500, LEDGER_IMBALANCE) to test resilience.
+  /api/v1/dev/mailbox:
+    get:
+      operationId: DevController_getMailbox
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Dev
+      summary: View Development Mailbox
+      description: Inspects synthetic outbound transactional emails and customer access links captured locally.
+  /api/v1/dev/health:
+    get:
+      operationId: DevController_getHealth
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Dev
+      summary: Check Service Health
+      description: Returns service operational status, database connectivity, and tenant count.
+  /api/v1/dev/seed:
+    post:
+      operationId: DevController_reSeed
+      parameters: []
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Dev
+      summary: Seed Synthetic Fixtures
+      description: Populates database with synthetic products, policies, and demo orders.
+  /api/v1/webhooks/paypal:
+    post:
+      operationId: WebhooksController_handlePayPalWebhook
+      parameters: []
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Webhooks
+      summary: Handle Default PayPal Webhook
+      description: Processes inbound PayPal payment capture, authorization, and refund events.
+  /api/v1/webhooks/paypal/{connectionKey}:
+    post:
+      operationId: WebhooksController_handlePayPalConnectionWebhook
+      parameters:
+        - name: connectionKey
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Webhook store connection identifier key
+            example: default
+          description: Webhook store connection identifier key
+          example: default
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Webhooks
+      summary: Handle Scoped PayPal Webhook
+      description: Processes inbound PayPal webhook events directed to a specific merchant connection key.
+  /api/v1/webhooks/email:
+    post:
+      operationId: WebhooksController_handleEmailWebhook
+      parameters: []
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Webhooks
+      summary: Handle Default Inbound Email
+      description: Processes inbound Resend webhook notifications for delivery, bounce, and reply tracking.
+  /api/v1/webhooks/email/{connectionKey}:
+    post:
+      operationId: WebhooksController_handleEmailConnectionWebhook
+      parameters:
+        - name: connectionKey
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Webhook store connection identifier key
+            example: default
+          description: Webhook store connection identifier key
+          example: default
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Webhooks
+      summary: Handle Scoped Inbound Email
+      description: Processes inbound email webhooks for a specific store connection key.
+  /api/v1/returns/{id}/inspection:
+    post:
+      operationId: ResolutionsController_recordInspection
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Resolutions
+      summary: Record Return Inspection
+      description: Records merchant physical inspection pass/fail status, unlocking or blocking automated resolution fund disbursement.
+  /api/v1/merchant/recovery:
+    get:
+      operationId: ResolutionsController_getRecoveryQueue
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Resolutions
+      summary: List Operator Recovery Queue
+      description: Lists saga resolution steps marked UNKNOWN or failed due to provider drops, awaiting operator reconciliation.
+  /api/v1/merchant/recovery/{id}/reconcile:
+    post:
+      operationId: ResolutionsController_reconcileOperation
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Unique UUID identifier of the target resource
+            example: 70000000-0000-0000-0000-000000000001
+          description: Unique UUID identifier of the target resource
+          example: 70000000-0000-0000-0000-000000000001
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Resolutions
+      summary: Reconcile Step State
+      description: Queries authoritative payment provider state to reconcile pending operations without duplicate disbursements.
+  /api/v1/cases/{caseId}/receipt:
+    get:
+      operationId: ResolutionsController_getReceipt
+      parameters:
+        - name: caseId
+          required: true
+          in: path
+          schema:
+            type: string
+            description: Dispute case UUID identifier
+            example: 4c52b868-9844-41a3-b3d0-8de4f230fc06
+          description: Dispute case UUID identifier
+          example: 4c52b868-9844-41a3-b3d0-8de4f230fc06
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Resolutions
+      summary: Get Resolution Receipt
+      description: Generates an immutable resolution receipt detailing approved remedy, financial refund IDs, return status, and double-entry ledger citations.
+  /api/v1/merchant/policies:
+    get:
+      operationId: PoliciesController_getPolicies
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Policies
+      summary: Get Merchant Policies
+      description: Retrieves active return, replacement, and exchange policy versions and structured rules.
+  /api/v1/merchant/policies/publish:
+    post:
+      operationId: PoliciesController_publishPolicy
+      parameters: []
+      responses:
+        '201':
+          description: Resource created or action completed successfully
+      tags:
+        - Policies
+      summary: Publish Policy Version
+      description: Publishes a new immutable policy version with SHA-256 integrity hash.
+  /api/v1/merchant/insights:
+    get:
+      operationId: MerchantController_getInsights
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Merchant
+      summary: Get Dispute Insights
+      description: Aggregates return rates, common defect categories, and resolution cost analytics.
+  /api/v1/merchant/reconciliation/export.csv:
+    get:
+      operationId: MerchantController_exportReconciliationCsv
+      parameters: []
+      responses:
+        '200':
+          description: Successful response
+      tags:
+        - Merchant
+      summary: Export Subledger CSV
+      description: Exports balanced double-entry journal transactions and account debits/credits in standard CSV format.
+info:
+  title: ResolvePay Rescue API
+  description: Autonomous commerce dispute, policy planning, and remedy resolution engine
+  version: '1.0'
+  contact: {}
+  x-server-configuration:
+    default-environment: Production
+    environments:
+      - name: Production
+        description: Live production and demo API gateway hosted on Azure Container Apps
+        servers:
+          - name: default
+            url: https://resolvepay-api.politetree-c3c2d975.centralindia.azurecontainerapps.io
+            description: Production API Gateway
+      - name: Development
+        description: Local development server
+        servers:
+          - name: default
+            url: http://localhost:3001
+            description: Local NestJS Server
+tags:
+  - name: Auth
+    description: Session management, persona authentication, and magic link access
+  - name: Catalog
+    description: Store catalog, product variants, and checkout order lifecycle
+  - name: Cases
+    description: Dispute case creation, messaging timeline, evidence uploads, and completeness checking
+  - name: Plans
+    description: AI-assisted and policy-guided remedy plan proposals, acceptance, and approval
+  - name: Dev
+    description: Development mailbox, health checks, seed fixtures, and failure injection simulator
+  - name: Webhooks
+    description: PayPal Orders v2 and Resend inbound event processing
+  - name: Resolutions
+    description: Physical return inspection gating, receipt generation, and resolution orchestration
+  - name: Policies
+    description: Merchant policy versioning and structured rule management
+  - name: Merchant
+    description: Operational recovery queue, policy publishing, analytics insights, and subledger reconciliation
+servers:
+  - url: https://resolvepay-api.politetree-c3c2d975.centralindia.azurecontainerapps.io
+    description: Production
+  - url: http://localhost:3001
+    description: Development
+components:
+  securitySchemes:
+    bearer:
+      scheme: bearer
+      bearerFormat: JWT
+      type: http
+      description: Session bearer token or authorization credential
+  schemas: {}
+security:
+  - bearer: []

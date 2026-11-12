@@ -14,6 +14,8 @@ import {
   returns,
   fulfillments,
   evidence,
+  policyVersions,
+  policyClauses,
   eq,
   and,
   desc,
@@ -25,12 +27,28 @@ import {
   CaseMessage,
   CreateEvidenceIntentDto,
   CompleteEvidenceUploadDto,
+  EvidenceCompletenessAssessment,
 } from '@resolvepay/contracts';
 import { transitionCase } from '@resolvepay/domain';
 import { SessionInfo } from '@resolvepay/contracts';
+import { AiProvider, GeminiAiClient, DeterministicAiProvider } from '@resolvepay/integrations';
+import { PlansService } from '../plans/plans.service.js';
 
 @Injectable()
 export class CasesService {
+  private aiProvider: AiProvider;
+
+  constructor(private plansService: PlansService) {
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (geminiKey && geminiKey.length > 10) {
+      this.aiProvider = new GeminiAiClient({
+        apiKey: geminiKey,
+        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      });
+    } else {
+      this.aiProvider = new DeterministicAiProvider();
+    }
+  }
   async createCase(dto: CreateCaseDto, session: SessionInfo): Promise<Case> {
     const db = await getDb();
     const [order] = await db
@@ -45,11 +63,7 @@ export class CasesService {
 
     // Verify customer owns this order if actor is CUSTOMER
     if (session.actorType === 'CUSTOMER') {
-      if (session.orderId && session.orderId !== order.id) {
-        if (session.customerEmail && session.customerEmail.toLowerCase() !== order.customerEmail.toLowerCase()) {
-          throw new ForbiddenException('Not authorized to open case for this order');
-        }
-      }
+      if (session.orderId !== order.id) throw new ForbiddenException('Use the secure access link for this order.');
     }
 
     const [newCase] = await db
@@ -155,6 +169,7 @@ export class CasesService {
         createdAt: e.createdAt.toISOString(),
       })),
       plans: casePlans.map((p) => ({
+        ...(p.planData as Record<string, unknown>),
         id: p.id,
         version: p.version,
         canonicalHash: p.canonicalHash,
@@ -165,6 +180,9 @@ export class CasesService {
         customerAccepted: p.customerAccepted,
         merchantApproved: p.merchantApproved,
         expiresAt: p.expiresAt.toISOString(),
+        createdAt: p.createdAt.toISOString(),
+        customerAcceptedAt: p.customerAcceptedAt?.toISOString(),
+        merchantApprovedAt: p.merchantApprovedAt?.toISOString(),
         planData: p.planData,
       })),
       resolution: resolution ? { id: resolution.id, state: resolution.state, currentStep: resolution.currentStep } : null,
@@ -269,7 +287,7 @@ export class CasesService {
     // Plans
     for (const p of details.plans) {
       events.push({
-        timestamp: p.expiresAt,
+        timestamp: p.createdAt,
         type: 'PLAN_PROPOSAL',
         title: `Remedy Proposed: ${p.title}`,
         description: p.explanation,
@@ -277,7 +295,7 @@ export class CasesService {
       });
       if (p.customerAccepted) {
         events.push({
-          timestamp: p.expiresAt,
+          timestamp: p.customerAcceptedAt || p.createdAt,
           type: 'CUSTOMER_ACCEPTANCE',
           title: 'Customer Accepted Remedy Terms',
           description: `Bound to canonical terms hash: ${p.canonicalHash.substring(0, 16)}...`,
@@ -286,7 +304,7 @@ export class CasesService {
       }
       if (p.merchantApproved) {
         events.push({
-          timestamp: p.expiresAt,
+          timestamp: p.merchantApprovedAt || p.createdAt,
           type: 'MERCHANT_APPROVAL',
           title: 'Merchant Authorized Financial Plan',
           description: `Approved by store approver for execution.`,
@@ -464,6 +482,134 @@ export class CasesService {
 
     const buffer = fs.readFileSync(filePath);
     return { buffer, mediaType: rec.mediaType };
+  }
+
+  async assessCompleteness(caseId: string, tenantId: string): Promise<EvidenceCompletenessAssessment> {
+    const db = await getDb();
+    const [caseRow] = await db
+      .select()
+      .from(cases)
+      .where(and(eq(cases.id, caseId), eq(cases.tenantId, tenantId)))
+      .limit(1);
+
+    if (!caseRow) throw new NotFoundException(`Case not found: ${caseId}`);
+
+    const [orderRow] = await db.select().from(orders).where(eq(orders.id, caseRow.orderId)).limit(1);
+    if (!orderRow) throw new NotFoundException(`Order not found: ${caseRow.orderId}`);
+
+    const orderItemRows = await db.select().from(orderItems).where(eq(orderItems.orderId, orderRow.id));
+
+    const customerMessages = await db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.caseId, caseId), eq(messages.senderRole, 'CUSTOMER')))
+      .orderBy(messages.createdAt);
+
+    const fullComplaint = customerMessages.map((m) => m.body).join('\n');
+
+    const evidenceRows = await db
+      .select()
+      .from(evidence)
+      .where(eq(evidence.caseId, caseId));
+
+    const evidenceDescriptions = evidenceRows
+      .map((e) => e.description)
+      .filter((d): d is string => !!d);
+
+    const [policyVersionRow] = await db
+      .select()
+      .from(policyVersions)
+      .where(eq(policyVersions.tenantId, tenantId))
+      .orderBy(desc(policyVersions.version))
+      .limit(1);
+
+    const clauseRows = policyVersionRow
+      ? await db.select().from(policyClauses).where(eq(policyClauses.policyVersionId, policyVersionRow.id))
+      : [];
+
+    return await this.aiProvider.assessCompleteness({
+      orderReference: orderRow.orderReference,
+      orderItems: orderItemRows.map((i) => ({
+        orderItemId: i.id,
+        sku: i.sku,
+        title: i.title,
+        quantity: i.quantity,
+      })),
+      complaintMessage: fullComplaint,
+      evidenceDescriptions,
+      policyClauses: clauseRows.map((c) => ({
+        key: c.key,
+        title: c.title,
+        text: c.text,
+        structuredRule: (c.structuredRule as Record<string, unknown>) || {},
+      })),
+    });
+  }
+
+  async saveCompletenessAnswers(
+    caseId: string,
+    answers: Record<string, string>,
+    session: SessionInfo
+  ): Promise<{ success: boolean; isComplete: boolean; regeneratedPlansCount: number }> {
+    const db = await getDb();
+    const [caseRow] = await db
+      .select()
+      .from(cases)
+      .where(and(eq(cases.id, caseId), eq(cases.tenantId, session.tenantId)))
+      .limit(1);
+
+    if (!caseRow) throw new NotFoundException(`Case not found: ${caseId}`);
+
+    // Formulate a structured follow-up clarification message
+    const lines = Object.entries(answers)
+      .filter(([_, val]) => !!val)
+      .map(([key, val]) => `- ${key}: ${val}`);
+
+    const clarificationBody = `[Evidence Clarification Answered]:\n${lines.join('\n')}`;
+
+    await db.insert(messages).values({
+      tenantId: session.tenantId,
+      caseId,
+      channel: 'WEB',
+      senderRole: 'CUSTOMER',
+      body: clarificationBody,
+      verificationState: 'VERIFIED',
+    });
+
+    // Update case constraints with the new answers
+    const currentConstraints = (caseRow.constraints as Record<string, any>) || {};
+    const updatedConstraints = {
+      ...currentConstraints,
+      ...answers,
+      preference: answers.preference
+        ? (answers.preference.toLowerCase().includes('refund') ? 'refund'
+          : answers.preference.toLowerCase().includes('replace') ? 'replacement'
+          : answers.preference.toLowerCase().includes('exchange') ? 'exchange'
+          : currentConstraints.preference)
+        : currentConstraints.preference,
+    };
+
+    await db
+      .update(cases)
+      .set({
+        constraints: updatedConstraints,
+        updatedAt: new Date(),
+      })
+      .where(eq(cases.id, caseId));
+
+    // Proposal 3 requirement: "regenerate only unaccepted plans"
+    await db
+      .delete(plans)
+      .where(and(eq(plans.caseId, caseId), eq(plans.customerAccepted, false)));
+
+    // Regenerate proposals with updated complete facts
+    const regenerated = await this.plansService.generateProposals(caseId, session);
+
+    return {
+      success: true,
+      isComplete: true,
+      regeneratedPlansCount: regenerated.length,
+    };
   }
 }
 

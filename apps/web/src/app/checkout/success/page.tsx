@@ -69,7 +69,7 @@ function CheckoutSuccessContent() {
             <div className="w-10 h-10 border-2 border-blue-700 border-t-transparent rounded-full animate-spin mx-auto" />
             <h2 className="text-lg font-semibold text-slate-900">Finalizing Your PayPal Purchase</h2>
             <p className="text-sm text-slate-500">
-              Verifying PayPal authorization token <span className="font-mono text-slate-700">{token || ref}</span> and posting double-entry subledger records...
+              Confirming your payment with PayPal. Please keep this page open.
             </p>
           </div>
         ) : error ? (
@@ -111,12 +111,12 @@ function CheckoutSuccessContent() {
                   Thank You for Your Order!
                 </h1>
                 <p className="text-sm text-slate-600 mt-1 leading-relaxed">
-                  Your payment has been captured successfully via PayPal. All subledger clearing accounts have recorded the transaction.
+                  Your PayPal payment is confirmed. Save your order reference below to get help with your purchase.
                 </p>
               </div>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 space-y-3 font-mono text-xs">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 space-y-3 font-mono text-xs break-all [&>div]:gap-4">
               <div className="flex justify-between">
                 <span className="text-slate-500 font-sans">Order Reference</span>
                 <span className="font-bold text-slate-900">{captureResult?.orderReference || ref}</span>
@@ -138,7 +138,7 @@ function CheckoutSuccessContent() {
             <div className="bg-blue-50/70 border border-blue-200 rounded-lg p-4 flex items-start space-x-3">
               <ShieldCheck className="w-5 h-5 text-blue-700 flex-shrink-0 mt-0.5" />
               <div className="text-xs text-blue-900 leading-relaxed">
-                <strong>ResolvePay Rescue Guarantee Active:</strong> If your items arrive damaged, incomplete, or require an exchange, your order is pre-registered for algorithmic resolution with automatic policy enforcement.
+                <strong>Need help with your purchase?</strong> Use your order reference and checkout email to securely report a problem and review the options covered by store policy.
               </div>
             </div>
 
@@ -150,7 +150,7 @@ function CheckoutSuccessContent() {
                 <ShoppingBag className="w-4 h-4 mr-1.5" /> Back to PeakGear Store
               </Link>
               <Link
-                href={`/portal/orders/${captureResult?.orderId || ref}`}
+                href={`/portal?ref=${encodeURIComponent(captureResult?.orderReference || ref)}`}
                 className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-blue-800 hover:bg-blue-700 shadow-sm transition"
               >
                 Open Resolution Portal <ArrowRight className="w-4 h-4 ml-1.5" />
@@ -177,4 +177,3 @@ export default function CheckoutSuccessPage() {
     </Suspense>
   );
 }
-

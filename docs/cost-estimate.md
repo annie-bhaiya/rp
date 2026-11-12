@@ -29,5 +29,4 @@ ResolvePay is designed to run within an active Azure subscription with a strict 
 2. **Log Retention**: Log Analytics workspace retention is capped at 30 days.
 3. **Budget Alerts**: Azure Budget alerts configured at $15, $24, and $28 thresholds.
 4. **No Paid AI Fallback**: Gemini uses free tier with local rate limits; `AI_PAID_FALLBACK=false`.
-5. **No Paid Messaging**: WhatsApp operates in free test mode; `PAID_MESSAGING_ENABLED=false`.
 

@@ -1,4 +1,4 @@
-import { Money } from '@resolvepay/contracts';
+import { CaseConstraint, Money, EvidenceCompletenessAssessment } from '@resolvepay/contracts';
 
 export interface RedactedOrderItem {
   orderItemId: string;
@@ -15,14 +15,24 @@ export interface RedactedCaseContext {
   evidenceDescriptions?: string[];
 }
 
+export interface CompletenessInput {
+  orderReference: string;
+  orderItems: RedactedOrderItem[];
+  complaintMessage: string;
+  evidenceDescriptions?: string[];
+  policyClauses: Array<{
+    key: string;
+    title: string;
+    text: string;
+    structuredRule?: Record<string, unknown>;
+  }>;
+}
+
 export interface ValidatedIssue {
+  source?: 'GEMINI' | 'DETERMINISTIC' | 'FALLBACK';
   issueType: 'damaged' | 'missing' | 'wrong_item' | 'cancel' | 'other';
   itemRefs: Array<{ orderItemId: string; quantity: number }>;
-  constraints: {
-    maxExtra?: Money;
-    neededBy?: string;
-    timezone?: string;
-  };
+  constraints: CaseConstraint;
   missingFacts: string[];
   evidenceRefs: string[];
   summary: string;
@@ -46,6 +56,7 @@ export interface GroundedOptionsInput {
 }
 
 export interface ValidatedExplanation {
+  source?: 'GEMINI' | 'DETERMINISTIC' | 'FALLBACK';
   explanationText: string;
   tradeoffs: string[];
   recommendedOptionType?: string;
@@ -54,5 +65,7 @@ export interface ValidatedExplanation {
 export interface AiProvider {
   extractIssue(input: RedactedCaseContext): Promise<ValidatedIssue>;
   explainOptions(input: GroundedOptionsInput): Promise<ValidatedExplanation>;
+  assessCompleteness(input: CompletenessInput): Promise<EvidenceCompletenessAssessment>;
 }
+
 

@@ -2,7 +2,7 @@
 
 > Autonomous commerce dispute, policy planning, and remedy resolution platform backed by PayPal Orders v2, Google Gemini AI, and an append-only double-entry PostgreSQL subledger.
 
-[![Vitest Tests](https://img.shields.io/badge/tests-30%20passed-brightgreen.svg)]()
+[![Vitest Tests](https://img.shields.io/badge/tests-suite-brightgreen.svg)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)]()
 [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)]()
 [![NestJS](https://img.shields.io/badge/NestJS-10-red.svg)]()
@@ -17,7 +17,8 @@
 - **Append-Only Double-Entry Subledger**: Every dollar captured, refunded, or credited is balanced (`PAYPAL_CLEARING`, `SALES_REVENUE`, `SALES_RETURNS`, `EXCHANGE_CREDIT_LIABILITY`). Minor units eliminate float rounding errors.
 - **Return & Inspection Gating**: Prevents automated fund disbursement or replacement dispatch until required physical inspection passes.
 - **Operator Recovery**: Failed or unknown provider states are reconciled with authoritative provider state without generating duplicate financial requests.
-- **Multi-Channel Timeline**: Unifies Web portal, Email (Resend), and WhatsApp (Meta Cloud API) interactions into one audit trail.
+- **Web and Email Journey**: Customers use the web portal and email access links, with messages recorded in the case timeline.
+- **AI Resolution Brief**: Gemini extracts issues and stated remedy preferences from the actual complaint, explains eligible remedies, and suggests an option for customer and merchant review. Provider failures use a clearly labeled deterministic fallback.
 - **Zero-Dependency Local Execution**: Out-of-the-box local operation using embedded WebAssembly PostgreSQL 16 (`@electric-sql/pglite`) and deterministic provider fallbacks.
 
 ---
@@ -32,7 +33,7 @@ packages/
   contracts/            Zod schemas, DTOs, and TypeScript types
   domain/               Money minor units, canonical plan hash, state machines, ledger
   db/                   Drizzle schema, PostgreSQL migrations, synthetic seed fixtures
-  integrations/         PayPal sandbox client & mock, Gemini AI & mock, Resend email, Meta WhatsApp
+  integrations/         PayPal sandbox client & mock, Gemini AI & mock, Resend email
   observability/        JSON logging, sensitive data redaction, metrics
   test-fixtures/        20 labeled AI evaluation cases and synthetic datasets
 infra/
@@ -90,30 +91,35 @@ Open your browser to **[http://localhost:3000](http://localhost:3000)**.
 
 ## End-to-End Demo Journey
 
-1. **Storefront & Purchase**:
-   - Visit `http://localhost:3000`.
-   - Browse PeakGear mountaineering gear (Backpacks, Trekking Poles, Gore-Tex Jackets).
-   - Click **Buy with PayPal** on any item to create an order and capture in sandbox mode.
-   - Or click **Test Pre-Seeded Order (ORD-2026-9041)**.
-2. **Report Issue & Generate Remedies**:
-   - In the customer view, select **Damaged or Defective Item** (e.g. broken backpack zipper).
-   - Click **Generate AI Grounded Remedies**.
-   - Compare the eligible remedies:
-     - Direct Full/Partial Refund ($120.00).
-     - Direct Same-Item Replacement (3-day delivery).
-     - Alternative Exchanges (e.g. upgrade to 50L Expedition pack or exchange for trekking poles).
-3. **Accept Remedy Plan**:
-   - Click **Accept this Remedy Plan**.
-   - Your acceptance is cryptographically bound to the material terms canonical SHA-256 hash.
-4. **Merchant Operations & Inspection**:
-   - Switch persona to **Approver** or **Owner** using the top navigation bar.
-   - Navigate to **Merchant Operations** (`/merchant`).
-   - Open the case and inspect the return: record **Passed (Condition Validated)**.
-   - Click **Authorize Financial Plan**.
-   - Click **Execute Resolution Saga**.
-   - The refund is processed, balanced in the subledger, and fulfillment is dispatched!
-5. **Timeline & Audit**:
-   - Review the complete chronological audit timeline reflecting all messages, return tracking, approvals, and settlements.
+1. Open a purchased or explicitly simulated seeded order.
+2. Describe the issue and click **Find my resolution**. The app opens the case, analyzes the narrative, and prepares remedies automatically.
+3. Review the shared resolution brief, source labels, missing facts, exact prices and policy citations. Choose a no-extra-cost remedy.
+4. In merchant operations, review evidence, record any required inspection, and click **Approve & resolve**. Outstanding return checks block execution.
+5. Review the resolution timeline and ledger. Use an actual PayPal sandbox purchase to demonstrate a real provider refund.
+
+See [the demo guide](docs/hackathon-demo.md) for the presentation and current limitations.
+
+---
+
+## APIMatic Developer Hub, SDKs & AI Context Plugin
+
+ResolvePay Rescue integrates with **[APIMatic](https://www.apimatic.io/)** to provide typed client libraries, an interactive 54-page API documentation portal, and AI coding assistant skills:
+
+- **Official SDKs**:
+  - [TypeScript / Node.js SDK](apimatic/sdks/typescript/README.md) (`apimatic/sdks/typescript`)
+  - [Python SDK](apimatic/sdks/python/README.md) (`apimatic/sdks/python`)
+  - [C# / .NET SDK](apimatic/sdks/csharp/README.md) (`apimatic/sdks/csharp`)
+- **Interactive Developer Documentation Portal**: 54 static pages with live API playground and `llms.txt` (`apimatic/portal/index.html`).
+- **AI Context Plugin**: Skills for Claude Code, Cursor, Copilot, and Antigravity (`apimatic/plugin`).
+- **Developer Guide**: Detailed usage, continuous sync, and local preview instructions in [`docs/apimatic.md`](docs/apimatic.md).
+
+```bash
+# Validate OpenAPI with APIMatic
+pnpm apimatic:validate
+
+# Regenerate all SDKs, Portal, and AI Plugin
+pnpm apimatic:all
+```
 
 ---
 
@@ -126,5 +132,5 @@ pnpm test
 ---
 
 ## External Services & Resolve.md
-External credentials (Google Gemini API key, PayPal sandbox app credentials, Resend API key, Meta WhatsApp tokens, and Azure subscription) are documented in [`resolve.md`](file:///e:/ResolvePay/resolve.md). The application provides complete local mocks so everything builds, tests, and runs out-of-the-box without waiting for external accounts.
+External credentials (Google Gemini API key, PayPal sandbox app credentials, Resend API key, and Azure subscription) are documented in [`resolve.md`](resolve.md). The application provides complete local mocks so everything builds, tests, and runs out-of-the-box without waiting for external accounts.
 

@@ -12,6 +12,7 @@ export class MockPayPalAdapter implements PayPalAdapter {
   private orders = new Map<string, { status: PayPalOrderResponse['status']; params: PayPalCreateOrderParams }>();
   private captures = new Map<string, { orderId: string; amount: string; currency: string; refunded: bigint }>();
   private refunds = new Map<string, PayPalRefundResponse>();
+  private refundsByRequestId = new Map<string, PayPalRefundResponse>();
 
   async createOrder(params: PayPalCreateOrderParams): Promise<PayPalOrderResponse> {
     const id = `MOCK-PAYPAL-ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -65,6 +66,10 @@ export class MockPayPalAdapter implements PayPalAdapter {
   }
 
   async refundCapture(params: PayPalRefundParams): Promise<PayPalRefundResponse> {
+    if (params.requestId && this.refundsByRequestId.has(params.requestId)) {
+      return this.refundsByRequestId.get(params.requestId)!;
+    }
+
     const capture = this.captures.get(params.captureId);
     const refundMinor = BigInt(params.amount.minor);
 
@@ -88,14 +93,17 @@ export class MockPayPalAdapter implements PayPalAdapter {
       },
     };
     this.refunds.set(refundId, response);
+    if (params.requestId) {
+      this.refundsByRequestId.set(params.requestId, response);
+    }
     return response;
   }
 
   async getRefund(refundId: string): Promise<PayPalRefundResponse> {
-    const existing = this.refunds.get(refundId);
+    const existing = this.refunds.get(refundId) || this.refundsByRequestId.get(refundId);
     if (!existing) {
       return {
-        id: refundId,
+        id: refundId.startsWith('REF-') || refundId.startsWith('MOCK-') ? refundId : `REF-RECON-${Date.now().toString().slice(-6)}`,
         status: 'COMPLETED',
         amount: { currency_code: 'USD', value: '120.00' },
       };

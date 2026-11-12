@@ -192,7 +192,7 @@ export const LABELED_EVALUATION_CASES: LabeledEvaluationCase[] = [
   },
   {
     id: 'CASE-18',
-    name: 'Unlinked WhatsApp intake',
+    name: 'Unlinked web intake',
     complaintText: 'Hi, I bought something on your site and need help.',
     orderItems: [],
     expectedIssueType: 'other',

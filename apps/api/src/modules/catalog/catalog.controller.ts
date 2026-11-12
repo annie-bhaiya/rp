@@ -7,6 +7,7 @@ import {
   Body,
   Req,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { CatalogService } from './catalog.service.js';
 import { AuthenticatedRequest, SessionAuthGuard } from '../../common/guards.js';
@@ -39,6 +40,9 @@ export class CatalogController {
   @Get('orders/:id')
   @UseGuards(SessionAuthGuard)
   async getOrder(@Param('id') orderId: string, @Req() req: AuthenticatedRequest) {
+    if (req.sessionInfo?.actorType === 'CUSTOMER' && req.sessionInfo.orderId !== orderId) {
+      throw new ForbiddenException('Sign in with the access link for this order.');
+    }
     return await this.catalogService.getOrderById(orderId, req.tenantId);
   }
 }

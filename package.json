@@ -13,7 +13,13 @@
     "dev:api": "pnpm --filter=@resolvepay/api start:dev",
     "dev:worker": "pnpm --filter=@resolvepay/worker start:dev",
     "dev:web": "pnpm --filter=@resolvepay/web dev",
-    "dev": "docker compose up -d postgres && pnpm dev:api"
+    "dev": "docker compose up -d postgres && pnpm dev:api",
+    "openapi:export": "node scripts/export-openapi.cjs",
+    "apimatic:validate": "apimatic api validate -i apimatic",
+    "apimatic:portal": "apimatic portal generate -d apimatic/portal --force -i apimatic",
+    "apimatic:sdks": "apimatic sdk generate -l typescript -d apimatic/sdks/typescript --force -i apimatic && apimatic sdk generate -l python -d apimatic/sdks/python --force -i apimatic && apimatic sdk generate -l csharp -d apimatic/sdks/csharp --force -i apimatic",
+    "apimatic:plugin": "apimatic plugin generate -d apimatic/plugin --force -i apimatic",
+    "apimatic:all": "pnpm openapi:export && pnpm apimatic:validate && pnpm apimatic:portal && pnpm apimatic:sdks && pnpm apimatic:plugin"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

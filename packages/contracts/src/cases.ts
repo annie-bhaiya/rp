@@ -23,7 +23,7 @@ export const CaseStateSchema = z.enum([
 ]);
 export type CaseState = z.infer<typeof CaseStateSchema>;
 
-export const ChannelTypeSchema = z.enum(['WEB', 'EMAIL', 'WHATSAPP']);
+export const ChannelTypeSchema = z.enum(['WEB', 'EMAIL']);
 export type ChannelType = z.infer<typeof ChannelTypeSchema>;
 
 export const CaseConstraintSchema = z.object({
@@ -101,4 +101,42 @@ export const CaseSchema = z.object({
   updatedAt: z.string(),
 });
 export type Case = z.infer<typeof CaseSchema>;
+
+// Proposal 3: Evidence Completeness Assistant
+export const EvidenceCompletenessQuestionSchema = z.object({
+  id: z.string(),
+  field: z.string(),
+  question: z.string(),
+  placeholder: z.string(),
+  options: z.array(z.string()).optional(),
+  requirementKey: z.string(),
+});
+export type EvidenceCompletenessQuestion = z.infer<typeof EvidenceCompletenessQuestionSchema>;
+
+export const PolicyRequirementCheckSchema = z.object({
+  clauseKey: z.string(),
+  title: z.string(),
+  satisfied: z.boolean(),
+  detail: z.string(),
+  missingQuestionId: z.string().optional(),
+});
+export type PolicyRequirementCheck = z.infer<typeof PolicyRequirementCheckSchema>;
+
+export const EvidenceCompletenessAssessmentSchema = z.object({
+  isComplete: z.boolean(),
+  scorePct: z.number().min(0).max(100),
+  summary: z.string(),
+  questions: z.array(EvidenceCompletenessQuestionSchema),
+  requirementsChecked: z.array(PolicyRequirementCheckSchema),
+  hasPhotoEvidenceDescription: z.boolean(),
+  photoEvidenceNote: z.string(),
+  source: z.enum(['GEMINI', 'DETERMINISTIC', 'FALLBACK']),
+});
+export type EvidenceCompletenessAssessment = z.infer<typeof EvidenceCompletenessAssessmentSchema>;
+
+export const SaveCompletenessAnswersDtoSchema = z.object({
+  answers: z.record(z.string()),
+});
+export type SaveCompletenessAnswersDto = z.infer<typeof SaveCompletenessAnswersDtoSchema>;
+
 

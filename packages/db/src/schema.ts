@@ -83,6 +83,16 @@ export const accessTokens = pgTable('access_tokens', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const merchantLoginTokens = pgTable('merchant_login_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tokenHash: varchar('token_hash', { length: 128 }).notNull().unique(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // 4. Customers & Catalog
 export const customers = pgTable('customers', {
   id: uuid('id').primaryKey().defaultRandom(),

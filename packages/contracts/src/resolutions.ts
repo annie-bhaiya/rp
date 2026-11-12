@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MoneySchema } from './common.js';
 
 export const ResolutionStateSchema = z.enum([
   'PREPARED',
@@ -130,4 +131,118 @@ export const FulfillmentSchema = z.object({
   updatedAt: z.string(),
 });
 export type Fulfillment = z.infer<typeof FulfillmentSchema>;
+
+// Proposal 1: Resolution Receipt
+export const ResolutionReceiptSchema = z.object({
+  caseId: z.string().uuid(),
+  orderId: z.string().uuid(),
+  orderReference: z.string(),
+  customerName: z.string(),
+  customerEmail: z.string(),
+  complaint: z.object({
+    text: z.string(),
+    issueType: z.string(),
+    channel: z.string(),
+    submittedAt: z.string(),
+    affectedItems: z.array(
+      z.object({
+        sku: z.string(),
+        title: z.string(),
+        quantity: z.number().int(),
+        unitPriceMinor: z.string(),
+      })
+    ),
+  }),
+  aiAttribution: z.object({
+    extractionSource: z.string(),
+    explanationSource: z.string(),
+    summary: z.string(),
+    missingFacts: z.array(z.string()).default([]),
+    tradeoffs: z.array(z.string()).default([]),
+    generatedAt: z.string().optional(),
+  }),
+  policy: z.object({
+    version: z.number().int(),
+    immutableHash: z.string(),
+    publisher: z.string(),
+    effectiveAt: z.string(),
+    citedClauses: z.array(
+      z.object({
+        key: z.string(),
+        title: z.string(),
+        text: z.string(),
+      })
+    ),
+  }),
+  remedy: z.object({
+    planId: z.string(),
+    type: z.string(),
+    title: z.string(),
+    canonicalHash: z.string(),
+    refundAmount: MoneySchema,
+    additionalPayment: MoneySchema.optional(),
+    requiresReturn: z.boolean(),
+    requiresInspection: z.boolean(),
+    state: z.string(),
+  }),
+  customerConsent: z.object({
+    status: z.enum(['ACCEPTED', 'PENDING']),
+    acceptedAt: z.string().optional(),
+    canonicalHash: z.string(),
+    hashMatches: z.boolean(),
+  }),
+  merchantAuthorization: z.object({
+    status: z.enum(['AUTHORIZED', 'PENDING', 'REJECTED']),
+    approvedAt: z.string().optional(),
+    approverId: z.string().optional(),
+    approverRole: z.string().optional(),
+  }),
+  providerExecution: z.object({
+    provider: z.literal('PAYPAL'),
+    status: z.enum(['COMPLETED', 'PENDING', 'UNKNOWN', 'NOT_STARTED']),
+    captureId: z.string().optional(),
+    refundId: z.string().optional(),
+    requestId: z.string().optional(),
+    amount: MoneySchema.optional(),
+  }),
+  returnStatus: z
+    .object({
+      status: z.string(),
+      trackingReference: z.string().optional(),
+      inspectionResult: z.string().optional(),
+      inspectionNotes: z.string().optional(),
+      inspectedAt: z.string().optional(),
+    })
+    .optional(),
+  ledger: z
+    .object({
+      transactionId: z.string().optional(),
+      businessEventKey: z.string(),
+      description: z.string(),
+      occurredAt: z.string(),
+      currency: z.string(),
+      isBalanced: z.boolean(),
+      totalDebitMinor: z.string(),
+      totalCreditMinor: z.string(),
+      entries: z.array(
+        z.object({
+          accountCode: z.string(),
+          debitMinor: z.string(),
+          creditMinor: z.string(),
+        })
+      ),
+    })
+    .nullable(),
+  verification: z.object({
+    isFullyVerified: z.boolean(),
+    steps: z.array(
+      z.object({
+        name: z.string(),
+        status: z.enum(['VERIFIED', 'PENDING', 'FAILED']),
+        detail: z.string(),
+      })
+    ),
+  }),
+});
+export type ResolutionReceipt = z.infer<typeof ResolutionReceiptSchema>;
 
