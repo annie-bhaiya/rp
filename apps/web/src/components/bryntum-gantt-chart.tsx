@@ -6,13 +6,14 @@ import type { BryntumGanttProps, BryntumGanttProjectModelProps } from '@bryntum/
 import { Calendar, ShieldCheck, Truck, CheckCircle2, AlertCircle, ZoomIn, ZoomOut, Maximize2, Sparkles } from 'lucide-react';
 
 // Bryntum 8.0 Enterprise License Key Registration
-// TODO: bryntum.licenseKey = '...'
+const BRYNTUM_TRIAL_KEY =
+  'eyJ2IjoxLCJpZCI6ImxpY19hMmUzZWMzNmRiZDEzYmI2NGZlZSIsInR5cGUiOiJ0cmlhbCIsInByb2R1Y3RzIjp7ImVudGVycHJpc2UiOlsiY2FsZW5kYXIiLCJnYW50dCIsImdyaWQiLCJzY2hlZHVsZXIiLCJ0YXNrYm9hcmQiXX0sInN1cHBvcnRFbmQiOiIyMDI2LTEyLTI3IiwibGljZW5zZUVuZCI6IjIwMjYtMTItMjcifQ==.t/q4/hiIPX6Aa3A//ThvCWNJRDIenN19vAJ3mVVbki80pOFD/cH4gAzp3zwV/XG9kNMOvlzmeTmxJCxr+A0YDNlGTLiqKVUZRfriOOVqm1dfABa6jZ8FBR8cVjRmajkWzFHaUaeGCldo9X6RlDfWGMWhgwR8kpnHdgTxwv1rglleLs8cAyqrasasEr4Uocx86e3ELaJbZHugp51H14WZ7VNSy3Fngbo2fytJmovkEt7ebc2Fl3tBbGj8xIWoJ25fj/x9TZWkFVgHuAF70in1bduZpLDVTG67F7dwn/f9gAPpTkP1oeUJ/wr4ollrCxbWa0YfKACxEhwmayy/TaSf3Q==';
+
 declare const bryntum: { licenseKey?: string };
 if (typeof window !== 'undefined') {
   (window as any).bryntum = (window as any).bryntum || {};
-  if (process.env.NEXT_PUBLIC_BRYNTUM_LICENSE_KEY) {
-    (window as any).bryntum.licenseKey = process.env.NEXT_PUBLIC_BRYNTUM_LICENSE_KEY;
-  }
+  (window as any).bryntum.licenseKey =
+    process.env.NEXT_PUBLIC_BRYNTUM_LICENSE_KEY || BRYNTUM_TRIAL_KEY;
 }
 
 export interface DisputeGanttViewProps {
@@ -268,6 +269,8 @@ export default function DisputeGanttView({
     ];
 
     return {
+      autoLoad: false,
+      autoSync: false,
       tasks,
       dependencies,
       resources,

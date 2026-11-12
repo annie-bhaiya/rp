@@ -27,23 +27,41 @@ import { ResolutionReceiptView } from '../../components/resolution-receipt';
 import { EvidenceCompletenessView } from '../../components/evidence-completeness';
 import { RecoverySimulator } from '../../components/recovery-simulator';
 import { DisputeGantt } from '../../components/dispute-gantt-wrapper';
+import { useAuth } from '../../components/auth-provider';
 import { fetchJson } from '../../lib/api';
 
 export default function MerchantOperationsPage() {
   const queryClient = useQueryClient();
+  const { session, loading: authLoading, demo } = useAuth();
+  const isMerchant = !!session && session.actorType === 'MERCHANT';
+
   const [activeTab, setActiveTab] = useState<'inbox' | 'insights' | 'recovery' | 'policies' | 'gantt'>('inbox');
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [inspectionResult, setInspectionResult] = useState<'PASSED' | 'FAILED'>('PASSED');
   const [inspectionNotes, setInspectionNotes] = useState('Physical item inspected: defective split zipper confirmed. Eligible for warranty remedy.');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const sessionReady = true;
+
+  // Auto-establish demo session if in demo mode and unauthenticated
+  useEffect(() => {
+    if (!authLoading && !session && demo) {
+      fetchJson<{ session: any }>('/api/v1/auth/login-dev', {
+        method: 'POST',
+        body: JSON.stringify({ persona: 'APPROVER', tenantSlug: 'default-merchant' }),
+      })
+        .then((res) => {
+          queryClient.setQueryData(['auth-session'], res.session);
+          queryClient.invalidateQueries({ queryKey: ['merchant-cases'] });
+        })
+        .catch(() => {});
+    }
+  }, [authLoading, session, demo, queryClient]);
 
   // 1. Fetch Cases
   const { data: casesList, refetch: refetchCases, error: casesError, isPending: casesLoading } = useQuery({
     queryKey: ['merchant-cases'],
     queryFn: () => fetchJson<any[]>('/api/v1/cases'),
-    enabled: sessionReady,
+    enabled: isMerchant,
     refetchInterval: 15_000,
   });
 
@@ -51,7 +69,7 @@ export default function MerchantOperationsPage() {
   const { data: caseDetails, refetch: refetchDetails, error: detailsError, isFetching: detailsLoading } = useQuery({
     queryKey: ['merchant-case-details', selectedCaseId],
     queryFn: () => fetchJson<any>(`/api/v1/cases/${selectedCaseId}`),
-    enabled: sessionReady && !!selectedCaseId,
+    enabled: isMerchant && !!selectedCaseId,
     refetchInterval: 10_000,
   });
 
@@ -59,28 +77,28 @@ export default function MerchantOperationsPage() {
   const { data: recoveryQueue, refetch: refetchRecovery, error: recoveryError, isFetching: recoveryLoading } = useQuery({
     queryKey: ['recovery-queue'],
     queryFn: () => fetchJson<any[]>('/api/v1/merchant/recovery'),
-    enabled: sessionReady && activeTab === 'recovery',
+    enabled: isMerchant && activeTab === 'recovery',
   });
 
   // 4. Fetch Policies
   const { data: policies, refetch: refetchPolicies, error: policiesError, isFetching: policiesLoading } = useQuery({
     queryKey: ['merchant-policies'],
     queryFn: () => fetchJson<any[]>('/api/v1/merchant/policies'),
-    enabled: sessionReady && activeTab === 'policies',
+    enabled: isMerchant && activeTab === 'policies',
   });
 
   // 5. Fetch Insights
   const { data: insights, refetch: refetchInsights, error: insightsError, isFetching: insightsLoading } = useQuery({
     queryKey: ['merchant-insights'],
     queryFn: () => fetchJson<any>('/api/v1/merchant/insights'),
-    enabled: sessionReady && activeTab === 'insights',
+    enabled: isMerchant && activeTab === 'insights',
   });
 
   // 6. Fetch Resolution Receipt for Selected Case (Proposal 1)
   const { data: receipt, isLoading: receiptLoading, refetch: refetchReceipt } = useQuery({
     queryKey: ['merchant-receipt', selectedCaseId],
     queryFn: () => fetchJson<any>(`/api/v1/cases/${selectedCaseId}/receipt`),
-    enabled: sessionReady && !!selectedCaseId,
+    enabled: isMerchant && !!selectedCaseId,
     refetchInterval: 10_000,
   });
 
@@ -216,8 +234,8 @@ export default function MerchantOperationsPage() {
         </div>
       )}
 
-      {(casesLoading || (selectedCaseId && detailsLoading) || (activeTab === 'recovery' && recoveryLoading) || (activeTab === 'policies' && policiesLoading) || (activeTab === 'insights' && insightsLoading)) && <p role="status" className="text-sm text-slate-600">Loading workspace data…</p>}
-      {(casesError || detailsError || (activeTab === 'recovery' && recoveryError) || (activeTab === 'policies' && policiesError) || (activeTab === 'insights' && insightsError)) && <div role="alert" className="p-4 text-sm bg-red-50 border border-red-200 rounded-md text-red-800"><p>We could not load this view. Your saved changes are safe.</p><button className="underline mt-2" onClick={() => queryClient.invalidateQueries()}>Try again</button></div>}
+      {isMerchant && (casesLoading || (selectedCaseId && detailsLoading) || (activeTab === 'recovery' && recoveryLoading) || (activeTab === 'policies' && policiesLoading) || (activeTab === 'insights' && insightsLoading)) && <p role="status" className="text-sm text-slate-600">Loading workspace data…</p>}
+      {isMerchant && (casesError || detailsError || (activeTab === 'recovery' && recoveryError) || (activeTab === 'policies' && policiesError) || (activeTab === 'insights' && insightsError)) && <div role="alert" className="p-4 text-sm bg-red-50 border border-red-200 rounded-md text-red-800"><p>We could not load this view. Your saved changes are safe.</p><button className="underline mt-2" onClick={() => queryClient.invalidateQueries()}>Try again</button></div>}
       {/* Tab 1: Case Inbox */}
       {activeTab === 'inbox' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

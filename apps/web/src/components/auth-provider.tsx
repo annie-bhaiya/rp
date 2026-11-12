@@ -45,6 +45,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   if (!merchant && !order && !mailbox) return children;
   if (loading) return <p role="status" className="py-16 text-center text-slate-600">Checking your secure session…</p>;
   if (mailbox && demo) return children;
+  if (merchant && demo) return children;
   if (error) return <section role="alert" className="max-w-lg mx-auto py-12 space-y-4"><h1 className="text-2xl font-semibold">We could not check your session</h1><p className="text-slate-600">Check your connection, then try again. You do not need to request another sign-in link.</p><button onClick={retry} className="rounded-md bg-blue-800 px-5 py-3 text-white">Try again</button></section>;
   if ((merchant && session?.actorType === 'MERCHANT') || (order && session?.actorType === 'CUSTOMER' && pathname === `/portal/orders/${session.orderId}`)) return children;
   return <section className="max-w-lg mx-auto py-12 space-y-5">
